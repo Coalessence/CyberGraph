@@ -1126,7 +1126,7 @@ class CyberGraph:
         with open(source_filename, mode="r") as file:
             data = json.load(file)
             cve_count = len(data["result"]["CVE_Items"])
-            for idx,cve in enumerate(data["result"]["CVE_Items"]):
+            for idx,cve in enumerate(data["result"]["CVE_Items"],1):
                 self.printProgressBar(idx,cve_count,"CVE")
 
                 self.write_cve({
@@ -1201,6 +1201,6 @@ if __name__ == "__main__":
     # cyberGraph.handle_cna("cna.json")
     # cyberGraph.handle_cwe("cwe.csv")
     # cyberGraph.handle_capec("capec.csv")
-    cyberGraph.handle_cve("dump.json")
+    # cyberGraph.handle_cve("dump.json")
 
     cyberGraph.close()
