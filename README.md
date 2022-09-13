@@ -1,7 +1,7 @@
 # Project Files Structure
 * `webapp`: it's a *react* project that utilizes the CVE graph database (inside they're both defined the *front* and *back* end);
 * `retrieve_data.py`: script used to retrieve all sort of info related to vulnetabilities (CNA, CVE, CWE, CAPEC);
-* `create_graph.py`: script that uses the file retrieved by the `retrieve_data.py` and creates a *Neo4j* graph database;
+* `create_graph.py`: script that uses the files retrieved by the `retrieve_data.py` and creates a *Neo4j* graph database;
 
 # Prerequisite
 * Have installed locally *Neo4j Desktop* with *APOC* libraries;
