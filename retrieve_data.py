@@ -96,7 +96,7 @@ class CVE:
         with open(dump_filename if not update_max_count else "update{}.json".format(update_max_count), "r") as file:
             try:
                 data = json.load(file)
-                last_update_date = data["timestamp"][:-1]
+                last_update_date = data["timestamp"]
             except:
                 print("Oops, it was not possible open the specified file :(")
                 return
@@ -108,7 +108,7 @@ class CVE:
         result_per_page = 2000
         print("Starting retrieving updates...")
         while True:
-            response = self.__send_request("https://services.nvd.nist.gov/rest/json/cves/2.0/?noRejected&resultsPerPage={}&startIndex={}&modStartDate={}&modEndDate={}".format(self._api_key,result_per_page,idx,last_update_date,current_date))
+            response = self.__send_request("https://services.nvd.nist.gov/rest/json/cves/2.0/?noRejected&resultsPerPage={}&startIndex={}&modStartDate={}&modEndDate={}".format(result_per_page,idx,last_update_date,current_date))
             if idx >= response["totalResults"]:
                 break
             

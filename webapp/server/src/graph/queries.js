@@ -19,7 +19,7 @@ const firstQuery = async ({ jsonString }) => {
                  WHERE toLower(prd.name)=toLower(query.technology) AND aff.versionStartIncluding <= query.version <= COALESCE(aff.versionEndExcluding, '99.9.9')
                  OPTIONAL MATCH (cve)-[:HAS_LINK_TO]->(ref:Patch)
                  OPTIONAL MATCH (cve)-[:HAS_EPSS]->(epss:EPSS)
-                 RETURN prd.name AS technology, round(toFloat(epss.probability)*metric.baseScore, 1) as probability, cve.id AS cve, cve.description AS description, metric.baseScore AS score, collect(DISTINCT ref.url) AS links
+                 RETURN prd.name AS technology, round(epss.probability*metric.baseScore, 1) as probability, cve.id AS cve, cve.description AS description, metric.baseScore AS score, collect(DISTINCT ref.url) AS links
                  ORDER BY probability DESC`,
                 {
                     values: jsonString,
@@ -33,8 +33,6 @@ const firstQuery = async ({ jsonString }) => {
     } finally {
         await session.close();
     }
-
-    console.log(res.records);
 
     return res.records;
 };
@@ -63,7 +61,7 @@ const concernQuery = async () => {
         });
     } catch (err) {
         console.error(
-            `Some error occurred while performing the first query. Error: ${err}`
+            `Some error occurred while performing the concern query. Error: ${err}`
         );
     } finally {
         await session.close();
