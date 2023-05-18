@@ -4,6 +4,7 @@ import time
 import json
 import glob
 import re
+import gzip
 from dotenv import load_dotenv
 from datetime import datetime
 from io import BytesIO
@@ -26,7 +27,7 @@ class CVE:
 
     def __send_request(self,url):
         while True:
-            res = requests.get(url)
+            res = requests.get(url, headers={"apiKey": self._api_key})
             if res:
                 try:
                     response = res.json()
@@ -41,7 +42,7 @@ class CVE:
             
 
     def get_number_existing_cves(self):
-        response = self.__send_request("https://services.nvd.nist.gov/rest/json/cves/1.0/?apiKey={}&resultsPerPage=1".format(self._api_key))    
+        response = self.__send_request("https://services.nvd.nist.gov/rest/json/cves/2.0/?resultsPerPage=1&noRejected")    
         return response["totalResults"]
 
     # 'filename': name of the output file (the default one is 'dump.json')
@@ -52,9 +53,9 @@ class CVE:
 
         print("Starting retrieving data...")
         while idx < total_results:
-            print("{}% complete. Processing CVEs entries from indexes {} to {}".format((idx//total_results)*100,idx, idx + result_per_page - 1))
+            print('{:.2f}% complete. Processing CVEs entries from indexes {} to {}'.format((idx/total_results)*100,idx, idx + result_per_page - 1))
             
-            response = self.__send_request("https://services.nvd.nist.gov/rest/json/cves/1.0/?apiKey={}&resultsPerPage={}&startIndex={}".format(self._api_key, result_per_page,idx))
+            response = self.__send_request("https://services.nvd.nist.gov/rest/json/cves/2.0/?noRejected&resultsPerPage={}&startIndex={}".format(result_per_page,idx))
 
             if not idx:
                 with open("{}.json".format(filename), "w") as file:
@@ -62,7 +63,7 @@ class CVE:
             else:
                 with open("{}.json".format(filename), "r+") as file:
                     data = json.load(file)
-                    data["result"]["CVE_Items"].extend(response["result"]["CVE_Items"])
+                    data["vulnerabilities"].extend(response["vulnerabilities"])
 
                     file.seek(0)
                     json.dump(data, file, indent = 4)
@@ -95,7 +96,7 @@ class CVE:
         with open(dump_filename if not update_max_count else "update{}.json".format(update_max_count), "r") as file:
             try:
                 data = json.load(file)
-                last_update_date = data["result"]["CVE_data_timestamp"][:-1] + ":00:000%20UTC%2B00:00"
+                last_update_date = data["timestamp"][:-1]
             except:
                 print("Oops, it was not possible open the specified file :(")
                 return
@@ -107,7 +108,7 @@ class CVE:
         result_per_page = 2000
         print("Starting retrieving updates...")
         while True:
-            response = self.__send_request("https://services.nvd.nist.gov/rest/json/cves/1.0/?apiKey={}&resultsPerPage={}&startIndex={}&modStartDate={}&modEndDate={}".format(self._api_key,result_per_page,idx,last_update_date,current_date))
+            response = self.__send_request("https://services.nvd.nist.gov/rest/json/cves/2.0/?noRejected&resultsPerPage={}&startIndex={}&modStartDate={}&modEndDate={}".format(self._api_key,result_per_page,idx,last_update_date,current_date))
             if idx >= response["totalResults"]:
                 break
             
@@ -117,7 +118,7 @@ class CVE:
             else:
                 with open(output_filename, "r+") as file:
                     data = json.load(file)
-                    data["result"]["CVE_Items"].extend(response["result"]["CVE_Items"])
+                    data["vulnerabilities"].extend(response["vulnerabilities"])
 
                     file.seek(0)
                     json.dump(data, file, indent = 4)
@@ -162,6 +163,77 @@ class CAPEC:
         print("All CAPECs has been downloaded and successfully saved into the \'{}.csv\' file.".format(filename))
         return "{}.csv".format(filename)
 
+class EPSS:
+    
+    def __init__(self):
+        self.sleep_time=5
+    #https://epss.cyentia.com/epss_scores-current.csv.gz
+    
+    def create_epss_dump(self, filename="epss"):
+        print("Starting retrieving EPSSs data...")
+        with urlopen("https://epss.cyentia.com/epss_scores-current.csv.gz") as zip_response:
+            with gzip.open(BytesIO(zip_response.read())) as zfile:
+                with open("{}.csv".format(filename), "wb") as file:
+                    file.write(zfile.read())
+        
+        print("All EPSSs has been downloaded and successfully saved into the \'{}.csv\' file.".format(filename))
+        return "{}.csv".format(filename)
+    
+    # 'filename': name of the output file (the default one is 'epss.csv')
+    def create_epss_dump_json(self, filename="epss"):
+        print("Starting retrieving EPSSs data...")
+        url = 'https://api.first.org/data/v1/epss'
+        offset = 0
+        limit = 1000
+        total=self.get_number_epss()
+        
+        while offset < total:
+            print('{:.2f}% complete.'.format((offset/total)*100))
+            
+            response = self.send_request("https://api.first.org/data/v1/epss?limit={}&offset={}".format(limit,offset))
+
+            if not offset:
+                with open("{}.json".format(filename), "w") as file:
+                    json.dump(response, file, indent = 4)
+            else:
+                with open("{}.json".format(filename), "r+") as file:
+                    data = json.load(file)
+                    data["data"].extend(response["data"])
+
+                    file.seek(0)
+                    json.dump(data, file, indent = 4)
+
+            # In case new CVEs have been released when the script is running
+            if total < response["total"]:
+                total = response["total"]
+
+            offset += limit
+
+            # Needed in order to not get banned from NIST
+            time.sleep(10)
+        
+        print("All EPSSs has been downloaded and successfully saved into the \'{}.json\' file.".format(filename))
+        return "{}.json".format(filename)
+    
+    def send_request(self,url):
+        while True:
+            res = requests.get(url)
+            if res:
+                try:
+                    response = res.json()
+                    break
+                except:
+                    print("Some error occured during the JSON conversion of the API response. A new attempt will be done in {} seconds.".format(self.sleep_time))
+                    time.sleep(self.sleep_time)
+            else:
+                print("The EPSS API didn't responded in time. A new attempt will be done in {} seconds.".format(self.sleep_time))
+                time.sleep(self.sleep_time)
+        return response
+    
+    def get_number_epss(self):
+        response = self.send_request('https://api.first.org/data/v1/epss?limit=1')
+        return response['total']
+        
 class CNA:
     # 'filename': name of the output file (the default one is 'cna.json')
     # It can be used also to update the CNA list, no need for a specific function
@@ -264,9 +336,11 @@ if __name__ == "__main__":
     cwes = CWE()
     capec = CAPEC()
     cna = CNA()
+    epss = EPSS()
     
-    # cves.create_cves_dump()
-    # cves.get_cves_updates("dump.json")
-    # cwes.create_cwes_dump()
-    # capec.create_capec_dump()
-    # cna.create_cna_dump()
+    #epss.create_epss_dump("epss")
+    #cves.create_cves_dump()
+    #cves.get_cves_updates("dump.json")
+    #cwes.create_cwes_dump()
+    #capec.create_capec_dump()
+    #cna.create_cna_dump()

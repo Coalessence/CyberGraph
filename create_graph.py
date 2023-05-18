@@ -148,35 +148,35 @@ class CyberGraph:
 
     def write_cna(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_cna, elements)
+            res = session.execute_write(self._create_cna, elements)
 
     def write_disclosure_policy(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_disclosure_policy, elements)
+            res = session.execute_write(self._create_disclosure_policy, elements)
 
     def write_organization_type(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_organization_type, elements)
+            res = session.execute_write(self._create_organization_type, elements)
     
     def write_security_advisory(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_security_advisory, elements)
+            res = session.execute_write(self._create_security_advisory, elements)
 
     def write_contact_info(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_contact_info, elements)
+            res = session.execute_write(self._create_contact_info, elements)
 
     def write_country(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_country, elements)
+            res = session.execute_write(self._create_country, elements)
 
     def write_scope(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_scope, elements)
+            res = session.execute_write(self._create_scope, elements)
     
     def write_cna_parent(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_cna_parent, elements)
+            res = session.execute_write(self._create_cna_parent, elements)
 
     def handle_cna(self, source_filename):
         with open(source_filename, mode='r') as file:
@@ -429,63 +429,63 @@ class CyberGraph:
 
     def write_cwe(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_cwe, elements)
+            res = session.execute_write(self._create_cwe, elements)
 
     def write_cwe_status(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_cwe_status, elements)
+            res = session.execute_write(self._create_cwe_status, elements)
 
     def write_cwe_related_cwe(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_cwe_related_cwe, elements)
+            res = session.execute_write(self._create_cwe_related_cwe, elements)
 
     def write_weakness_ordinality(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_weakness_ordinality, elements)
+            res = session.execute_write(self._create_weakness_ordinality, elements)
 
     def write_cwe_alternative_term(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_cwe_alternative_term, elements)
+            res = session.execute_write(self._create_cwe_alternative_term, elements)
 
     def write_phase(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_phase, elements)
+            res = session.execute_write(self._create_phase, elements)
 
     def write_security_property(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_security_property, elements)
+            res = session.execute_write(self._create_security_property, elements)
 
     def write_impact(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_impact, elements)
+            res = session.execute_write(self._create_impact, elements)
 
     def write_cwe_consequence(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_cwe_consequence, elements)
+            res = session.execute_write(self._create_cwe_consequence, elements)
 
     def delete_cwe_consequences(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._remove_cwe_consequences, elements)
+            res = session.execute_write(self._remove_cwe_consequences, elements)
 
     def write_detection_method(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_detection_method, elements)
+            res = session.execute_write(self._create_detection_method, elements)
 
     def write_cwe_mitigation(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_cwe_mitigation, elements)
+            res = session.execute_write(self._create_cwe_mitigation, elements)
 
     def write_functional_area(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_functional_area, elements)
+            res = session.execute_write(self._create_functional_area, elements)
 
     def write_affected_resource(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_affected_resource, elements)
+            res = session.execute_write(self._create_affected_resource, elements)
 
     def write_cwe_related_capec(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_cwe_related_capec, elements)
+            res = session.execute_write(self._create_cwe_related_capec, elements)
 
     def handle_cwe(self, source_filename):
         ordinality_descriptions = {
@@ -503,11 +503,11 @@ class CyberGraph:
         mitigation_regex = re.compile("^(?:PHASE:(.*?))?(?::STRATEGY:(.*?))?[:]*(?:DESCRIPTION:(.*?))?(?::EFFECTIVENESS:(.*))?$")
 
         cwe_count = 0
-        with open(source_filename, mode='r') as csv_file:
+        with open(source_filename, mode='r', encoding='utf-8') as csv_file:
             csv_reader = csv.DictReader(csv_file)
             cwe_count = sum(1 for row in csv_reader) - 1
 
-        with open(source_filename, mode='r') as csv_file:
+        with open(source_filename, mode='r', encoding='utf-8') as csv_file:
             csv_reader = csv.DictReader(csv_file)
             for idx,cwe in enumerate(csv_reader,1):
                 self.printProgressBar(idx,cwe_count,"CWE")
@@ -803,63 +803,63 @@ class CyberGraph:
 
     def write_capec(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_capec, elements)
+            res = session.execute_write(self._create_capec, elements)
 
     def write_capec_status(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_capec_status, elements)
+            res = session.execute_write(self._create_capec_status, elements)
 
     def write_capec_alternative_term(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_capec_alternative_term, elements)
+            res = session.execute_write(self._create_capec_alternative_term, elements)
 
     def write_capec_scale_level(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_capec_scale_level, elements)
+            res = session.execute_write(self._create_capec_scale_level, elements)
 
     def write_execution_flow(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_execution_flow, elements)
+            res = session.execute_write(self._create_execution_flow, elements)
 
     def write_technique(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_technique, elements)
+            res = session.execute_write(self._create_technique, elements)
 
     def write_prerequisite(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_prerequisite, elements)
+            res = session.execute_write(self._create_prerequisite, elements)
 
     def write_skill(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_skill, elements)
+            res = session.execute_write(self._create_skill, elements)
 
     def write_asset(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_asset, elements)
+            res = session.execute_write(self._create_asset, elements)
 
     def write_indicator(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_indicator, elements)
+            res = session.execute_write(self._create_indicator, elements)
 
     def delete_capec_consequences(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._remove_capec_consequences, elements)
+            res = session.execute_write(self._remove_capec_consequences, elements)
 
     def write_capec_consequence(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_capec_consequence, elements)
+            res = session.execute_write(self._create_capec_consequence, elements)
 
     def write_capec_mitigation(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_capec_mitigation, elements)
+            res = session.execute_write(self._create_capec_mitigation, elements)
 
     def write_capec_example(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_capec_example, elements)
+            res = session.execute_write(self._create_capec_example, elements)
 
     def write_capec_related_capec(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_capec_related_capec, elements)
+            res = session.execute_write(self._create_capec_related_capec, elements)
 
     def handle_capec(self, source_filename):
         alternative_term_regex = re.compile("^TERM:(.*?)(?::DESCRIPTION[:]*(.*))?$")
@@ -869,11 +869,11 @@ class CyberGraph:
         related_capec_regex = re.compile("^NATURE:(.*?):CAPEC ID:(.*)$")
 
         capec_count = 0
-        with open(source_filename, mode='r') as csv_file:
+        with open(source_filename, mode='r', encoding='utf-8') as csv_file:
             csv_reader = csv.DictReader(csv_file)
             capec_count = sum(1 for row in csv_reader) - 1
 
-        with open(source_filename, mode='r') as csv_file:
+        with open(source_filename, mode='r', encoding='utf-8') as csv_file:
             csv_reader = csv.DictReader(csv_file)
             for idx,capec in enumerate(csv_reader,1):
                 self.printProgressBar(idx,capec_count,"CAPEC")
@@ -1010,6 +1010,70 @@ class CyberGraph:
             print("")
 
     # ==============================================
+    # =============== HANDLE EPSS ==================
+    # ==============================================
+    
+    def write_epss(self, elements):
+        with self.driver.session() as session:
+            res = session.execute_write(self._create_epss, elements)
+    
+    def clean_epss(self):
+        with self.driver.session() as session:
+            res = session.execute_write(self._delete_epss)
+    
+    @staticmethod
+    def _delete_epss(tx):
+        tx.run("""MATCH (epss:EPSS) DETACH DELETE epss""")
+        
+    
+    @staticmethod
+    def _create_epss(tx, elements):
+        tx.run("""
+               MATCH (cve:CVE { id:$cveId })
+               MERGE (epss:EPSS { probability:$probability, percentile:$percentile})
+               MERGE (cve)-[:HAS_EPSS]->(epss)
+               """,
+               cveId=elements["cveId"],
+               probability=elements["probability"],
+               percentile=elements["percentile"])
+        
+    def handle_epss(self, source_filename):
+        
+        #we need to first remove existing epss
+        self.clean_epss()
+        
+        total=0
+        with open(source_filename, 'r', encoding="utf-8") as file:
+            reader = csv.reader(file, delimiter=',')
+            for row in reader:
+                total += 1
+        
+        total = total - 2
+        
+        with open(source_filename, 'r', encoding="utf-8") as file:
+            reader = csv.reader(file, delimiter=',')
+            # Skip the first row (comment with version and last update date)
+            next(reader)
+            # Read the second row (column headers)
+            headers = next(reader)
+            
+            idx=0
+            
+            for row in reader:
+                # Create a dictionary using the headers as keys and row values
+                row_dict = dict(zip(headers, row))
+                self.printProgressBar(idx,total,"EPSS")
+                
+                self.write_epss({
+                    "cveId":row_dict["cve"],
+                    "probability":float(row_dict["epss"]),
+                    "percentile":float(row_dict["percentile"]),
+                })
+                idx += 1
+                
+            print("")
+    
+    # ==============================================
     # =============== HANDLE CVE ===================
     # ==============================================
 
@@ -1096,96 +1160,113 @@ class CyberGraph:
                        
     def write_cve(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_cve, elements)
+            res = session.execute_write(self._create_cve, elements)
 
     def write_cve_related_cna(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_cve_related_cna, elements)
+            res = session.execute_write(self._create_cve_related_cna, elements)
 
     def write_cve_related_cwe(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_cve_related_cwe, elements)
+            res = session.execute_write(self._create_cve_related_cwe, elements)
     
     def write_metric(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_metric, elements)
+            res = session.execute_write(self._create_metric, elements)
 
     def write_reference(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_reference, elements)
+            res = session.execute_write(self._create_reference, elements)
 
     def write_vendor_and_product(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_vendor_and_product, elements)
+            res = session.execute_write(self._create_vendor_and_product, elements)
 
     def write_version(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_version, elements)
+            res = session.execute_write(self._create_version, elements)
 
     def handle_cve(self, source_filename):
         with open(source_filename, mode="r") as file:
             data = json.load(file)
-            cve_count = len(data["result"]["CVE_Items"])
-            for idx,cve in enumerate(data["result"]["CVE_Items"],1):
+            cve_count = len(data["vulnerabilities"])
+            for idx,cve in enumerate(data["vulnerabilities"],1):
                 self.printProgressBar(idx,cve_count,"CVE")
 
                 self.write_cve({
-                    "id":cve["cve"]["CVE_data_meta"]["ID"],
-                    "description":cve["cve"]["description"]["description_data"][0]["value"],
-                    "publishedDate":cve["publishedDate"],
-                    "lastModifiedDate":cve["lastModifiedDate"],
+                    "id":cve["cve"]["id"],
+                    "description":cve["cve"]["descriptions"][0]["value"],
+                    "publishedDate":cve["cve"]["published"],
+                    "lastModifiedDate":cve["cve"]["lastModified"],
                 })
                 # Before run it be sure to have run "handle_cna" first!
                 self.write_cve_related_cna({
-                    "cnaEmail":cve["cve"]["CVE_data_meta"]["ASSIGNER"],
-                    "cveId":cve["cve"]["CVE_data_meta"]["ID"]
+                    "cnaEmail":cve["cve"]["sourceIdentifier"],
+                    "cveId":cve["cve"]["id"]
                 })
                 # If there are no CWE related the "description" array is empty, so no additional check needed.
-                for cwe in cve["cve"]["problemtype"]["problemtype_data"][0]["description"]:
-                    self.write_cve_related_cwe({
-                        "cweId":cwe["value"].replace("CWE-",""),
-                        "cveId":cve["cve"]["CVE_data_meta"]["ID"]
-                    })
-                if "baseMetricV3" in cve["impact"]:
-                    self.write_metric({
-                        "vector":cve["impact"]["baseMetricV3"]["cvssV3"]["vectorString"].replace("CVSS:3.1/",""),
-                        "baseScore":cve["impact"]["baseMetricV3"]["cvssV3"]["baseScore"],
-                        "severity":cve["impact"]["baseMetricV3"]["cvssV3"]["baseSeverity"].capitalize(),
-                        "exploitabilityScore":cve["impact"]["baseMetricV3"]["exploitabilityScore"],
-                        "impactScore":cve["impact"]["baseMetricV3"]["impactScore"],
-                        "cveId":cve["cve"]["CVE_data_meta"]["ID"]
-                    })
-                for ref in cve["cve"]["references"]["reference_data"]:
-                    additionalLabels = ":".join(map(lambda tag: tag.title(),ref["tags"])).replace(" ","").replace("/","").replace("\\","").replace("|","").replace("-","")
-                    additionalLabels = additionalLabels if not additionalLabels else ":" + additionalLabels
-                    self.write_reference({
-                        "labels":":Reference" + additionalLabels,
-                        "url":ref["url"],
-                        "cveId":cve["cve"]["CVE_data_meta"]["ID"]
-                    })
-
-                # TODO - Possible integration with https://nvd.nist.gov/developers/products
-                for node in cve["configurations"]["nodes"]:
-                    for cpe in node["cpe_match"]:
-                        cpe_elements = cpe["cpe23Uri"].split(":")
-
-                        self.write_vendor_and_product({
-                            "vendorName":cpe_elements[3],
-                            "productName":cpe_elements[4],
-                            "productType":("Application" if cpe_elements[2]=="a" else "Hardware" if cpe_elements[2]=="h" else "Operating Systems"),
+                if "weaknesses" in cve["cve"]:
+                    for cwe in cve["cve"]["weaknesses"]:
+                        self.write_cve_related_cwe({
+                            "cweId":cwe["description"][0]["value"].replace("CWE-",""),
+                            "cveId":cve["cve"]["id"]
                         })
+                    
+                if "cvssMetricV30" in cve["cve"]["metrics"]:
+                    self.write_metric({
+                        "vector":cve["cve"]["metrics"]["cvssMetricV30"][0]["cvssData"]["vectorString"].replace("CVSS:3.0/",""),
+                        "baseScore":cve["cve"]["metrics"]["cvssMetricV30"][0]["cvssData"]["baseScore"],
+                        "severity":cve["cve"]["metrics"]["cvssMetricV30"][0]["cvssData"]["baseSeverity"].capitalize(),
+                        "exploitabilityScore":cve["cve"]["metrics"]["cvssMetricV30"][0]["exploitabilityScore"],
+                        "impactScore":cve["cve"]["metrics"]["cvssMetricV30"][0]["impactScore"],
+                        "cveId":cve["cve"]["id"]
+                    })
+                if "cvssMetricV31" in cve["cve"]["metrics"]:
+                    self.write_metric({
+                        "vector":cve["cve"]["metrics"]["cvssMetricV31"][0]["cvssData"]["vectorString"].replace("CVSS:3.1/",""),
+                        "baseScore":cve["cve"]["metrics"]["cvssMetricV31"][0]["cvssData"]["baseScore"],
+                        "severity":cve["cve"]["metrics"]["cvssMetricV31"][0]["cvssData"]["baseSeverity"].capitalize(),
+                        "exploitabilityScore":cve["cve"]["metrics"]["cvssMetricV31"][0]["exploitabilityScore"],
+                        "impactScore":cve["cve"]["metrics"]["cvssMetricV31"][0]["impactScore"],
+                        "cveId":cve["cve"]["id"]
+                    })
+                    
+                if "references" in cve["cve"]:
+                    for ref in cve["cve"]["references"]:
+                        if "tags" in ref:
+                            additionalLabels = ":".join(map(lambda tag: tag.title(),ref["tags"])).replace(" ","").replace("/","").replace("\\","").replace("|","").replace("-","")
+                            additionalLabels = additionalLabels if not additionalLabels else ":" + additionalLabels
+                        else:
+                            additionalLabels = ""
+                        self.write_reference({
+                            "labels":":Reference" + additionalLabels,
+                            "url":ref["url"],
+                            "cveId":cve["cve"]["id"]
+                        })
+                # TODO - Possible integration with https://nvd.nist.gov/developers/products
+                if("configurations" in cve["cve"]):
+                    for configuration in cve["cve"]["configurations"]:
+                        for node in configuration["nodes"]:
+                            for cpe in node["cpeMatch"]:
+                                cpe_elements = cpe["criteria"].split(":")
 
-                        # TODO - At the moment the graph doesn't model the combination AND/OR of products
-                        # (es. CVE-2019-5163, CVE-2021-43803) or CVE-2017-20026 (where there's no "versionStartIncluding")
-                        if "versionStartIncluding" in cpe:
-                            self.write_version({
-                                "cveId":cve["cve"]["CVE_data_meta"]["ID"],
-                                "productName":cpe_elements[4],
-                                "vulnerable":cpe["vulnerable"],
-                                "cpe23Uri":cpe["cpe23Uri"],
-                                "versionStartIncluding":cpe["versionStartIncluding"],
-                                "versionEndExcluding":cpe["versionEndExcluding"] if "versionEndExcluding" in cpe else None
-                            })
+                                self.write_vendor_and_product({
+                                    "vendorName":cpe_elements[3],
+                                    "productName":cpe_elements[4],
+                                    "productType":("Application" if cpe_elements[2]=="a" else "Hardware" if cpe_elements[2]=="h" else "Operating Systems"),
+                                })
+
+                                # TODO - At the moment the graph doesn't model the combination AND/OR of products
+                                # (es. CVE-2019-5163, CVE-2021-43803) or CVE-2017-20026 (where there's no "versionStartIncluding")
+                                if "versionStartIncluding" in cpe:
+                                    self.write_version({
+                                        "cveId":cve["cve"]["id"],
+                                        "productName":cpe_elements[4],
+                                        "vulnerable":cpe["vulnerable"],
+                                        "cpe23Uri":cpe["criteria"],
+                                        "versionStartIncluding":cpe["versionStartIncluding"],
+                                        "versionEndExcluding":cpe["versionEndExcluding"] if "versionEndExcluding" in cpe else None
+                                    })
 
             print("")
 
@@ -1198,9 +1279,10 @@ if __name__ == "__main__":
 
     cyberGraph = CyberGraph(neo4j_uri, neo4j_username, neo4j_password)
 
-    # cyberGraph.handle_cna("cna.json")
-    # cyberGraph.handle_cwe("cwe.csv")
-    # cyberGraph.handle_capec("capec.csv")
-    # cyberGraph.handle_cve("dump.json")
+    #cyberGraph.handle_cna("cna.json")
+    #cyberGraph.handle_cwe("cwe.csv")
+    #cyberGraph.handle_capec("capec.csv")
+    #cyberGraph.handle_cve("dump.json")
+    cyberGraph.handle_epss("epss.csv")
 
     cyberGraph.close()

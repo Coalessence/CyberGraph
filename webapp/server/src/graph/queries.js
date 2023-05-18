@@ -10,10 +10,47 @@ const firstQuery = async ({ jsonString }) => {
     });
 
     let res;
+
     try {
         res = await session.executeRead((tx) => {
             return tx.run(
                 `UNWIND apoc.convert.fromJsonList($values) AS query
+                 OPTIONAL MATCH (metric:Metric)<-[:HAS_METRIC]-(cve:CVE)-[aff:AFFECTS]->(prd:Product)
+                 WHERE toLower(prd.name)=toLower(query.technology) AND aff.versionStartIncluding <= query.version <= COALESCE(aff.versionEndExcluding, '99.9.9')
+                 OPTIONAL MATCH (cve)-[:HAS_LINK_TO]->(ref:Patch)
+                 OPTIONAL MATCH (cve)-[:HAS_EPSS]->(epss:EPSS)
+                 RETURN prd.name AS technology, round(toFloat(epss.probability)*metric.baseScore, 1) as probability, cve.id AS cve, cve.description AS description, metric.baseScore AS score, collect(DISTINCT ref.url) AS links
+                 ORDER BY probability DESC`,
+                {
+                    values: jsonString,
+                }
+            );
+        });
+    } catch (err) {
+        console.error(
+            `Some error occurred while performing the first query. Error: ${err}`
+        );
+    } finally {
+        await session.close();
+    }
+
+    console.log(res.records);
+
+    return res.records;
+};
+
+const concernQuery = async () => {
+    const session = driver.session({
+        defaultAccessMode: neo4j_session.READ,
+        database: "neo4j",
+    });
+
+    let res;
+
+    try {
+        res = await session.executeRead((tx) => {
+            return tx.run(
+                `
                  OPTIONAL MATCH (metric:Metric)<-[:HAS_METRIC]-(cve:CVE)-[aff:AFFECTS]->(prd:Product)
                  WHERE toLower(prd.name)=toLower(query.technology) AND aff.versionStartIncluding <= query.version <= COALESCE(aff.versionEndExcluding, '99.9.9')
                  OPTIONAL MATCH (cve)-[:HAS_LINK_TO]->(ref:Patch)
@@ -43,4 +80,5 @@ process.on("exit", async (code) => {
 
 module.exports = {
     firstQuery,
+    concernQuery,
 };

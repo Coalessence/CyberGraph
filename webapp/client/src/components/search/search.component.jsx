@@ -22,27 +22,29 @@ const Search = ({ setRes, setMean }) => {
                 message.error("Some inputs are incomplete and/or invalid!");
             } else {
                 // [0]: "technology"
-                // [1]: "cve"
-                // [2]: "description"
-                // [3]: "score"
-                // [4]: "links"
+                // [1]: "probability"
+                // [2]: "cve"
+                // [3]: "description"
+                // [4]: "score"
+                // [5]: "links"
                 let total_score = 0;
                 let count = 0;
                 let query_result = [];
                 res.data.map((row, idx) => {
-                    if (row._fields[1] || row._fields[2] || row._fields[3]) {
+                    if (row._fields[2] || row._fields[3] || row._fields[4]) {
                         let elem = {
                             key: idx,
-                            score: row._fields[3],
+                            score: row._fields[4],
                             technology: row._fields[0],
-                            cveid: row._fields[1],
-                            cvedescription: row._fields[2],
-                            cvepatches: row._fields[4],
+                            probability: row._fields[1],
+                            cveid: row._fields[2],
+                            cvedescription: row._fields[3],
+                            cvepatches: row._fields[5],
                         };
                         query_result.push(elem);
                     }
-                    if (row._fields[3]) {
-                        total_score += row._fields[3];
+                    if (row._fields[4]) {
+                        total_score += row._fields[4];
                         count += 1;
                     }
 

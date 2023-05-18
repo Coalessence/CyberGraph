@@ -1,6 +1,6 @@
 const express = require("express");
 const cors = require("cors");
-const { firstQuery } = require("./graph/queries");
+const { firstQuery, concernQuery } = require("./graph/queries");
 
 const main = async () => {
     const app = express();
@@ -41,6 +41,18 @@ const main = async () => {
             }
         } else {
             res.send("1000");
+        }
+    });
+
+    app.route("/vulnerabilities/all").get(async (req, res) => {
+
+        try {
+            const query_response = await concernQuery();
+            res.send(query_response);
+        } catch (err) {
+            console.log(
+                `Some error occurred while performing the query. Error: ${err}`
+            );
         }
     });
 

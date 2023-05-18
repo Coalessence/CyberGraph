@@ -2,10 +2,11 @@ import { Table, Tag, List } from "antd";
 
 const FirstQueryResult = ({ data }) => {
     // [0]: "technology"
-    // [1]: "cve"
-    // [2]: "description"
-    // [3]: "score"
-    // [4]: "links"
+    // [1]: "probability"
+    // [2]: "cve"
+    // [3]: "description"
+    // [4]: "score"
+    // [5]: "links"
     const columns = [
         {
             title: "Score",
@@ -27,6 +28,33 @@ const FirstQueryResult = ({ data }) => {
                             key={Math.floor(100000 + Math.random() * 900000)}
                         >
                             {score}
+                        </Tag>
+                    );
+                }
+
+                return component;
+            },
+        },
+        {
+            title: "Threat",
+            dataIndex: "probability",
+            key: "probability",
+            align: "center",
+            render: (probability) => {
+                let color =
+                    probability >= 6 && probability < 8
+                        ? "#fda703"
+                        : probability >= 8
+                        ? "#ff968a"
+                        : "";
+                let component = probability;
+                if (color) {
+                    component = (
+                        <Tag
+                            color={color}
+                            key={Math.floor(100000 + Math.random() * 900000)}
+                        >
+                            {probability}
                         </Tag>
                     );
                 }
