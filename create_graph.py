@@ -1074,6 +1074,184 @@ class CyberGraph:
             print("")
     
     # ==============================================
+    # =============== HANDLE SOURCES ===============
+    # ==============================================
+    @staticmethod
+    def _create_source(tx, elements):
+        tx.run("""
+            MERGE (:SOURCE { name:$sourceName, contactMail:$sourceContactMail, created:$sourceCreated, modified:$sourceModified, })
+            """, 
+            sourceName=elements["name"],
+            sourceContactMail=elements["contactEmail"],
+            sourceCreated=elements["created"],
+            sourceModified=elements["modified"]
+            )
+        
+    @staticmethod
+    def _create_identifier(tx, elements):
+        tx.run("""
+            MATCH (source:SOURCE { name:$sourceName })
+            MERGE (id:IDENTIFIER { identifier:$identifier })
+            MERGE (source)-[:HAS_IDENTIFIER]->(id)
+            """, 
+            sourceName=elements["name"],
+            identifier=elements["identifier"])
+    
+    @staticmethod
+    def _create_source_v2_acceptance_level(tx, elements):
+        tx.run("""
+            MATCH (source:SOURCE { name:$sourceName })
+            MERGE (al:V2_ACCEPTANCE_LEVEL { description:$description, lastModified:$lastModified })
+            MERGE (source)-[:HAS_V2_ACCEPTANCE_LEVEL]->(al)
+            """, 
+            sourceName=elements["name"],
+            description=elements["description"],
+            lastModified=elements["lastModified"])
+    
+    @staticmethod
+    def _create_source_v3_acceptance_level(tx, elements):
+        tx.run("""
+            MATCH (source:SOURCE { name:$sourceName })
+            MERGE (al:V3_ACCEPTANCE_LEVEL { description:$description, lastModified:$lastModified })
+            MERGE (source)-[:HAS_V3_ACCEPTANCE_LEVEL]->(al)
+            """, 
+            sourceName=elements["name"],
+            description=elements["description"],
+            lastModified=elements["lastModified"])
+    
+    @staticmethod
+    def _create_source_cwe_acceptance_level(tx, elements):
+        tx.run("""
+            MATCH (source:SOURCE { name:$sourceName })
+            MERGE (al:CWE_ACCEPTANCE_LEVEL { description:$description, lastModified:$lastModified })
+            MERGE (source)-[:HAS_CWE_ACCEPTANCE_LEVEL]->(al)
+            """, 
+            sourceName=elements["name"],
+            description=elements["description"],
+            lastModified=elements["lastModified"])
+
+    def write_source(self, elements):
+        with self.driver.session() as session:
+            res = session.execute_write(self._create_source, elements)
+    
+    def write_identifier(self, elements):
+        with self.driver.session() as session:
+            res = session.execute_write(self._create_identifier, elements)
+            
+    def write_source_v2_acceptance_level(self, elements):
+        with self.driver.session() as session:
+            res = session.execute_write(self._create_source_v2_acceptance_level, elements)
+    
+    def write_source_v3_acceptance_level(self, elements):
+        with self.driver.session() as session:
+            res = session.execute_write(self._create_source_v3_acceptance_level, elements)
+    
+    def write_source_cwe_acceptance_level(self, elements):
+        with self.driver.session() as session:
+            res = session.execute_write(self._create_source_cwe_acceptance_level, elements)
+    
+    def handle_sources(self, source_filename):
+        with open(source_filename, mode='r') as file:
+            data = json.load(file)
+            source_count = len(data["sources"])
+            for idx,source in enumerate(data["sources"],1):
+                self.printProgressBar(idx,source_count,"sources")
+
+                self.write_source({
+                    "name": source["name"],
+                    "contactEmail": source["contactEmail"],
+                    "created": source["created"],
+                    "modified": source["lastModified"]
+                })
+                
+                for identifier in source["sourceIdentifiers"]:
+                    self.write_identifier({
+                        "name": source["name"],
+                        "identifier": identifier,
+                    })
+                    
+                if "v2AcceptanceLevel" in source:
+                    self.write_source_v2_acceptance_level({
+                        "name": source["name"],
+                        "description": source["v2AcceptanceLevel"]["description"],
+                        "lastModified": source["v2AcceptanceLevel"]["lastModified"]
+                    })
+                    
+                if "v3AcceptanceLevel" in source:
+                    self.write_source_v3_acceptance_level({
+                        "name": source["name"],
+                        "description": source["v3AcceptanceLevel"]["description"],
+                        "lastModified": source["v3AcceptanceLevel"]["lastModified"]
+                    })
+                
+                if "cweAcceptanceLevel" in source:
+                    self.write_source_cwe_acceptance_level({
+                        "name": source["name"],
+                        "description": source["cweAcceptanceLevel"]["description"],
+                        "lastModified": source["cweAcceptanceLevel"]["lastModified"]
+                    })
+            print("")
+
+    # ==============================================
+    # =============== HANDLE CPE ===================
+    # ==============================================
+    
+    @staticmethod
+    def _create_cpe(tx, elements):
+        tx.run("""
+            MERGE (cpe:CPE { cpeName:$cpeName, cpeNameId:$cpeNameId, lastModified:$lastModified, created:$created, deprecated:$deprecated })
+            """, 
+            cpeName=elements["cpeName"],
+            cpeNameId=elements["cpeNameId"],
+            lastModified=elements["lastModified"],
+            created=elements["created"],
+            deprecated=elements["deprecated"])
+    
+    @staticmethod
+    def _create_cpe_title(tx, elements):
+        tx.run("""
+            MATCH (cpe:CPE { cpeName:$cpeName })
+            MERGE (ti:CPE_TITLE { title:$title, language:$language })
+            MERGE (cpe)-[:HAS_TITLE]->(ti)
+            """, 
+            cpeName=elements["cpeName"],
+            title=elements["title"],
+            language=elements["language"])
+    
+    def write_cpe(self, elements):
+        with self.driver.session() as session:
+            res = session.execute_write(self._create_cpe, elements)
+    
+    def write_cpe_title(self, elements):
+        with self.driver.session() as session:
+            res = session.execute_write(self._create_cpe_title, elements)
+
+    def handle_cpe(self, cpe_filename):
+        with open(cpe_filename, mode='r') as file:
+            data = json.load(file)
+            product_count = len(data["products"])
+            for idx,product in enumerate(data["products"],1):
+                self.printProgressBar(idx,product_count,"products")     
+                cpe=product["cpe"]
+                
+                self.write_cpe({
+                    "cpeName": cpe["cpeName"],
+                    "cpeNameId": cpe["cpeNameId"],
+                    "lastModified": cpe["lastModified"],
+                    "created": cpe["created"],
+                    "deprecated": cpe["deprecated"]
+                })
+                
+                for title in cpe["titles"]:
+                    self.write_cpe_title({
+                        "cpeName": cpe["cpeName"],
+                        "title": title["title"],
+                        "language": title["lang"]
+                    })
+                
+            print("")
+    
+    # ==============================================
     # =============== HANDLE CVE ===================
     # ==============================================
 
@@ -1082,7 +1260,7 @@ class CyberGraph:
         tx.run("""
             MERGE (cve:CVE { id:$id, publishedDate:$publishedDate, lastModifiedDate:$lastModifiedDate })
             SET cve.description=$description
-            """, 
+            """,    
             id=elements["id"],
             description=elements["description"],
             publishedDate=elements["publishedDate"],
@@ -1279,10 +1457,10 @@ if __name__ == "__main__":
 
     cyberGraph = CyberGraph(neo4j_uri, neo4j_username, neo4j_password)
 
-    #cyberGraph.handle_cna("cna.json")
-    #cyberGraph.handle_cwe("cwe.csv")
-    #cyberGraph.handle_capec("capec.csv")
-    #cyberGraph.handle_cve("dump.json")
+    cyberGraph.handle_cna("cna.json")
+    cyberGraph.handle_cwe("cwe.csv")
+    cyberGraph.handle_capec("capec.csv")
+    cyberGraph.handle_cve("dump.json")
     cyberGraph.handle_epss("epss.csv")
 
     cyberGraph.close()

@@ -5,3 +5,5 @@ cwe.csv
 dump.json
 epss.csv
 epss.json
+sources.json
+cpe.json

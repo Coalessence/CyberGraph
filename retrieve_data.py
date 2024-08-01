@@ -20,10 +20,12 @@ from selenium.webdriver.support.ui import Select
 from selenium.webdriver.common.by import By
 
 class CVE:
-    def __init__(self):
+    def __init__(self, year=None):
         load_dotenv()
         self._api_key = os.getenv('NIST_API_KEY')
         self._retry_sleep = 5    # In seconds
+        if(year is not None):
+            self._year = year
 
     def __send_request(self,url):
         while True:
@@ -48,7 +50,7 @@ class CVE:
     # 'filename': name of the output file (the default one is 'dump.json')
     def create_cves_dump(self, filename="dump"):
         idx = 0
-        result_per_page = 2000
+        result_per_page = 5000
         total_results = self.get_number_existing_cves()
 
         print("Starting retrieving data...")
@@ -68,10 +70,6 @@ class CVE:
                     file.seek(0)
                     json.dump(data, file, indent = 4)
 
-            # In case new CVEs have been released when the script is running
-            if total_results < response["totalResults"]:
-                total_results = response["totalResults"]
-
             idx += result_per_page
 
             # Needed in order to not get banned from NIST
@@ -81,6 +79,110 @@ class CVE:
         
         return "{}.json".format(filename)
 
+    def get_cves_year(self, filename="dump", year=2020):
+        idx = 0
+        result_per_page = 2000
+        total_results = 0
+
+        
+        response = self.__send_request('https://services.nvd.nist.gov/rest/json/cves/2.0/?resultsPerPage=1&noRejected&pubStartDate={}-01-01T00:00:00.000&pubEndDate={}-04-01T00:00:00.000'.format(year,year))    
+        total_results=response["totalResults"]
+        
+        print("Starting retrieving first part of the year")
+        
+        while idx < total_results:
+            
+            response = self.__send_request("https://services.nvd.nist.gov/rest/json/cves/2.0/?noRejected&resultsPerPage={}&startIndex={}&pubStartDate={}-01-01T00:00:00.000&pubEndDate={}-04-01T00:00:00.000".format(result_per_page,idx, year, year))
+
+            if not idx:
+                with open("{}.json".format(filename), "w") as file:
+                    json.dump(response, file, indent = 4)
+            else:
+                with open("{}.json".format(filename), "r+") as file:
+                    data = json.load(file)
+                    data["vulnerabilities"].extend(response["vulnerabilities"])
+
+                    file.seek(0)
+                    json.dump(data, file, indent = 4)
+
+            idx += result_per_page
+            time.sleep(10)
+        
+        
+        idx=0
+        
+        print("Starting retrieving second part of the year")
+        
+        response = self.__send_request("https://services.nvd.nist.gov/rest/json/cves/2.0/?resultsPerPage=1&noRejected&pubStartDate={}-04-01T00:00:01.000&pubEndDate={}-07-01T00:00:00.000".format(year, year))    
+        total_results+=response["totalResults"]
+        
+        while idx < total_results:
+            
+            response = self.__send_request("https://services.nvd.nist.gov/rest/json/cves/2.0/?noRejected&resultsPerPage={}&startIndex={}&pubStartDate={}-04-01T00:00:01.000&pubEndDate={}-07-01T00:00:00.000".format(result_per_page,idx, year, year))
+
+            with open("{}.json".format(filename), "r+") as file:
+                data = json.load(file)
+                data["vulnerabilities"].extend(response["vulnerabilities"])
+
+                file.seek(0)
+                json.dump(data, file, indent = 4)
+
+            idx += result_per_page
+            time.sleep(10)
+        
+        idx=0
+        
+        print("Starting retrieving third part of the year")
+        
+        response = self.__send_request("https://services.nvd.nist.gov/rest/json/cves/2.0/?resultsPerPage=1&noRejected&pubStartDate={}-07-01T00:00:01.000&pubEndDate={}-10-01T00:00:00.000".format(year, year))    
+        total_results+=response["totalResults"]
+        
+        while idx < total_results:
+            
+            response = self.__send_request("https://services.nvd.nist.gov/rest/json/cves/2.0/?noRejected&resultsPerPage={}&startIndex={}&pubStartDate={}-07-01T00:00:01.000&pubEndDate={}-10-01T00:00:00.000".format(result_per_page,idx, year, year))
+
+            if not idx:
+                with open("{}.json".format(filename), "w") as file:
+                    json.dump(response, file, indent = 4)
+            else:
+                with open("{}.json".format(filename), "r+") as file:
+                    data = json.load(file)
+                    data["vulnerabilities"].extend(response["vulnerabilities"])
+
+                    file.seek(0)
+                    json.dump(data, file, indent = 4)
+
+            time.sleep(10)
+            idx += result_per_page
+            
+        
+        print("Starting retrieving fourth part of the year")    
+        
+        response = self.__send_request("https://services.nvd.nist.gov/rest/json/cves/2.0/?resultsPerPage=1&noRejected&pubStartDate={}-10-01T00:00:01.000&pubEndDate={}-12-31T23:59:59.000".format(year, year))    
+        total_results+=response["totalResults"]
+        
+        while idx < total_results:
+                        
+            response = self.__send_request("https://services.nvd.nist.gov/rest/json/cves/2.0/?noRejected&resultsPerPage={}&startIndex={}&pubStartDate={}-10-01T00:00:01.000&pubEndDate={}-12-31T23:59:59.000".format(result_per_page,idx, year, year))
+
+            if not idx:
+                with open("{}.json".format(filename), "w") as file:
+                    json.dump(response, file, indent = 4)
+            else:
+                with open("{}.json".format(filename), "r+") as file:
+                    data = json.load(file)
+                    data["vulnerabilities"].extend(response["vulnerabilities"])
+
+                    file.seek(0)
+                    json.dump(data, file, indent = 4)
+
+            idx += result_per_page
+            time.sleep(10)
+        
+        print("All CVEs of {} has been downloaded and successfully saved into the \'{}.json\' file.".format(year,filename))
+        
+        return "{}.json".format(filename)
+    
     # 'dump_filename': name of the dump file
     # The search for new updates will start from the most recent update file (if there is no update file, start from the dump one)
     # Common usage: cron job
@@ -102,13 +204,13 @@ class CVE:
                 return
 
         # Dates must follow "yyyy-MM-ddTHH:mm:ss:SSS Z" format (e.g. 2022-07-23T16:32:20:265 UTC+01:00) where either the space and the plus must be rightly encoded (' '=%20  +=%2B)
-        current_date = datetime.utcnow().isoformat(sep='T', timespec='milliseconds').replace(".",":") + "%20UTC%2B00:00"
+        current_date = datetime.utcnow().isoformat(sep='T', timespec='milliseconds').replace(".",":")
 
         idx = 0
-        result_per_page = 2000
+        result_per_page = 4000
         print("Starting retrieving updates...")
         while True:
-            response = self.__send_request("https://services.nvd.nist.gov/rest/json/cves/2.0/?noRejected&resultsPerPage={}&startIndex={}&modStartDate={}&modEndDate={}".format(result_per_page,idx,last_update_date,current_date))
+            response = self.__send_request("https://services.nvd.nist.gov/rest/json/cves/2.0/?noRejected&resultsPerPage={}&startIndex={}&changeStartDate={}&changeEndDate={}".format(result_per_page,idx,last_update_date,current_date))
             if idx >= response["totalResults"]:
                 break
             
@@ -126,7 +228,229 @@ class CVE:
             idx += result_per_page
 
             # Needed in order to not get banned from NIST
-            time.sleep(10)
+            time.sleep(5)
+        
+        if not idx:
+            print("No new updates found.")
+        else:
+            print("All the updates has been downloaded and successfully saved into the \'{}\' file.".format(output_filename))
+
+        return output_filename if idx else ""
+
+class CPE:
+    def __init__(self):
+        load_dotenv()
+        self._api_key = os.getenv('NIST_API_KEY')
+        self._retry_sleep = 5    # In seconds
+
+    def __send_request(self,url):
+        while True:
+            res = requests.get(url, headers={"apiKey": self._api_key})
+            if res:
+                try:
+                    response = res.json()
+                    break
+                except:
+                    print("Some error occured during the JSON conversion of the API response. A new attempt will be done in {} seconds.".format(self._retry_sleep))
+                    time.sleep(self._retry_sleep)
+            else:
+                print("The NIST API didn't responded in time. A new attempt will be done in {} seconds.".format(self._retry_sleep))
+                time.sleep(self._retry_sleep)
+        return response
+    
+    def get_number_existing_cpes(self):
+        response = self.__send_request("https://services.nvd.nist.gov/rest/json/cpes/2.0/?resultsPerPage=1")    
+        return response["totalResults"]
+    
+    def create_cpes_dump(self, filename="dump"):
+        idx = 0
+        result_per_page = 10000
+        total_results = self.get_number_existing_cpes()
+
+        print("Starting retrieving data...")
+        while idx < total_results:
+            print('{:.2f}% complete. Processing CPEs entries from indexes {} to {}'.format((idx/total_results)*100,idx, idx + result_per_page - 1))
+            
+            response = self.__send_request("https://services.nvd.nist.gov/rest/json/cpes/2.0/?resultsPerPage={}&startIndex={}".format(result_per_page,idx))
+
+            if not idx:
+                with open("{}.json".format(filename), "w") as file:
+                    json.dump(response, file, indent = 4)
+            else:
+                with open("{}.json".format(filename), "r+") as file:
+                    data = json.load(file)
+                    data["products"].extend(response["products"])
+
+                    file.seek(0)
+                    json.dump(data, file, indent = 4)
+
+            # In case new CPEs have been released when the script is running
+            if total_results < response["totalResults"]:
+                total_results = response["totalResults"]
+
+            idx += result_per_page
+
+            # Needed in order to not get banned from NIST
+            time.sleep(5)
+        
+        print("All CPEs has been downloaded and successfully saved into the \'{}.json\' file.".format(filename))
+        
+        return "{}.json".format(filename)
+    
+    def get_cpes_updates(self, dump_filename):
+        regex = re.compile(".*([0-9]+).*")
+        update_max_count = 0
+        for name in glob.glob("./update[0-9]*.json"):
+            n = int(regex.match(name).group(1))
+            if update_max_count < n:
+                update_max_count = n
+        output_filename = "update{}.json".format(update_max_count + 1)
+
+        with open(dump_filename if not update_max_count else "update{}.json".format(update_max_count), "r") as file:
+            try:
+                data = json.load(file)
+                last_update_date = data["timestamp"]
+            except:
+                print("Oops, it was not possible open the specified file :(")
+                return
+
+        # Dates must follow "yyyy-MM-ddTHH:mm:ss:SSS Z" format (e.g. 2022-07-23T16:32:20:265 UTC+01:00) where either the space and the plus must be rightly encoded (' '=%20  +=%2B)
+        current_date = datetime.utcnow().isoformat(sep='T', timespec='milliseconds').replace(".",":") + "%20UTC%2B00:00"
+
+        idx = 0
+        result_per_page = 10000
+        print("Starting retrieving updates...")
+        while True:
+            response = self.__send_request("https://services.nvd.nist.gov/rest/json/cpes/2.0/?resultsPerPage={}&startIndex={}&modStartDate={}&modEndDate={}".format(result_per_page,idx,last_update_date,current_date))
+            if idx >= response["totalResults"]:
+                break
+            
+            if not idx:
+                with open(output_filename, "w") as file:
+                    json.dump(response, file, indent = 4)
+            else:
+                with open(output_filename, "r+") as file:
+                    data = json.load(file)
+                    data["products"].extend(response["products"])
+
+                    file.seek(0)
+                    json.dump(data, file, indent = 4)
+
+            idx += result_per_page
+
+            # Needed in order to not get banned from NIST
+            time.sleep(5)
+        
+        if not idx:
+            print("No new updates found.")
+        else:
+            print("All the updates has been downloaded and successfully saved into the \'{}\' file.".format(output_filename))
+
+        return output_filename if idx else ""
+
+class SOURCES:
+    def __init__(self):
+        load_dotenv()
+        self._api_key = os.getenv('NIST_API_KEY')
+        self._retry_sleep = 5    # In seconds
+
+    def __send_request(self,url):
+        while True:
+            res = requests.get(url, headers={"apiKey": self._api_key})
+            if res:
+                try:
+                    response = res.json()
+                    break
+                except:
+                    print("Some error occured during the JSON conversion of the API response. A new attempt will be done in {} seconds.".format(self._retry_sleep))
+                    time.sleep(self._retry_sleep)
+            else:
+                print("The NIST API didn't responded in time. A new attempt will be done in {} seconds.".format(self._retry_sleep))
+                time.sleep(self._retry_sleep)
+        return response
+    
+    def get_number_existing_sources(self):
+        response = self.__send_request("https://services.nvd.nist.gov/rest/json/source/2.0/?resultsPerPage=1")    
+        return response["totalResults"]
+    
+    def create_sources_dump(self, filename="dump"):
+        idx = 0
+        result_per_page = 1000
+        total_results = self.get_number_existing_sources()
+
+        print("Starting retrieving data...")
+        while idx < total_results:
+            print('{:.2f}% complete. Processing Sources entries from indexes {} to {}'.format((idx/total_results)*100,idx, idx + result_per_page - 1))
+            
+            response = self.__send_request("https://services.nvd.nist.gov/rest/json/source/2.0/?resultsPerPage={}&startIndex={}".format(result_per_page,idx))
+
+            if not idx:
+                with open("{}.json".format(filename), "w") as file:
+                    json.dump(response, file, indent = 4)
+            else:
+                with open("{}.json".format(filename), "r+") as file:
+                    data = json.load(file)
+                    data["sources"].extend(response["sources"])
+
+                    file.seek(0)
+                    json.dump(data, file, indent = 4)
+
+            # In case new sources have been released when the script is running
+            if total_results < response["totalResults"]:
+                total_results = response["totalResults"]
+
+            idx += result_per_page
+
+            # Needed in order to not get banned from NIST
+            time.sleep(5)
+        
+        print("All Sources has been downloaded and successfully saved into the \'{}.json\' file.".format(filename))
+        
+        return "{}.json".format(filename)
+    
+    def get_sources_updates(self, dump_filename):
+        regex = re.compile(".*([0-9]+).*")
+        update_max_count = 0
+        for name in glob.glob("./update[0-9]*.json"):
+            n = int(regex.match(name).group(1))
+            if update_max_count < n:
+                update_max_count = n
+        output_filename = "update{}.json".format(update_max_count + 1)
+
+        with open(dump_filename if not update_max_count else "update{}.json".format(update_max_count), "r") as file:
+            try:
+                data = json.load(file)
+                last_update_date = data["timestamp"]
+            except:
+                print("Oops, it was not possible open the specified file :(")
+                return
+
+        # Dates must follow "yyyy-MM-ddTHH:mm:ss:SSS Z" format (e.g. 2022-07-23T16:32:20:265 UTC+01:00) where either the space and the plus must be rightly encoded (' '=%20  +=%2B)
+        current_date = datetime.utcnow().isoformat(sep='T', timespec='milliseconds').replace(".",":") + "%20UTC%2B00:00"
+
+        idx = 0
+        result_per_page = 1000
+        print("Starting retrieving updates...")
+        while True:
+            response = self.__send_request("https://services.nvd.nist.gov/rest/json/source/2.0/?resultsPerPage={}&startIndex={}&modStartDate={}&modEndDate={}".format(result_per_page,idx,last_update_date,current_date))
+            if idx >= response["totalResults"]:
+                break
+            
+            if not idx:
+                with open(output_filename, "w") as file:
+                    json.dump(response, file, indent = 4)
+            else:
+                with open(output_filename, "r+") as file:
+                    data = json.load(file)
+                    data["sources"].extend(response["sources"])
+
+                    file.seek(0)
+                    json.dump(data, file, indent = 4)
+
+            idx += result_per_page
+
+            # Needed in order to not get banned from NIST
+            time.sleep(5)
         
         if not idx:
             print("No new updates found.")
@@ -337,10 +661,14 @@ if __name__ == "__main__":
     capec = CAPEC()
     cna = CNA()
     epss = EPSS()
+    cpe = CPE()
+    sources= SOURCES()
     
     #epss.create_epss_dump("epss")
     #cves.create_cves_dump()
-    #cves.get_cves_updates("dump.json")
     #cwes.create_cwes_dump()
     #capec.create_capec_dump()
     #cna.create_cna_dump()
+    #cpe.create_cpes_dump("cpe")
+    #sources.create_sources_dump("sources")
+    cves.get_cves_year("dump",2022)
