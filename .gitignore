@@ -7,3 +7,4 @@ epss.csv
 epss.json
 sources.json
 cpe.json
+.remote.env

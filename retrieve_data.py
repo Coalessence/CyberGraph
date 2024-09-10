@@ -15,7 +15,6 @@ from zipfile import ZipFile
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.common.by import By
 
@@ -566,8 +565,8 @@ class CNA:
         options = Options()
         options.add_argument("--headless")
 
-        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-        driver2 = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+        driver = webdriver.Chrome(service=Service(), options=options)
+        driver2 = webdriver.Chrome(service=Service(), options=options)
 
         print("Starting retrieving CNAs data...")
         driver.get("https://www.cve.org/PartnerInformation/ListofPartners")
@@ -668,7 +667,7 @@ if __name__ == "__main__":
     #cves.create_cves_dump()
     #cwes.create_cwes_dump()
     #capec.create_capec_dump()
-    #cna.create_cna_dump()
-    #cpe.create_cpes_dump("cpe")
-    #sources.create_sources_dump("sources")
+    cna.create_cna_dump()
+    cpe.create_cpes_dump("cpe")
+    sources.create_sources_dump("sources")
     cves.get_cves_year("dump",2022)

@@ -221,6 +221,8 @@ class CyberGraph:
                     "cnaName":cna["name"]
                 })
                 for scope in cna["scopes"]:
+                    scope["type"] = scope["type"].replace("-","_").upper()
+                    print(scope["type"])
                     self.write_scope({
                         "description":scope["description"],
                         "relationship":"HAS_"+scope["type"]+"_SCOPE",
