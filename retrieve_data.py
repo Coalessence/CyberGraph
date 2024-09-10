@@ -663,10 +663,10 @@ if __name__ == "__main__":
     cpe = CPE()
     sources= SOURCES()
     
-    #epss.create_epss_dump("epss")
+    epss.create_epss_dump("epss")
     #cves.create_cves_dump()
-    #cwes.create_cwes_dump()
-    #capec.create_capec_dump()
+    cwes.create_cwes_dump()
+    capec.create_capec_dump()
     cna.create_cna_dump()
     cpe.create_cpes_dump("cpe")
     sources.create_sources_dump("sources")
