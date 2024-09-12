@@ -49,7 +49,7 @@ class CVE:
     # 'filename': name of the output file (the default one is 'dump.json')
     def create_cves_dump(self, filename="dump"):
         idx = 0
-        result_per_page = 5000
+        result_per_page = 2000
         total_results = self.get_number_existing_cves()
 
         print("Starting retrieving data...")
