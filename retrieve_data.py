@@ -21,7 +21,6 @@ from selenium.webdriver.common.by import By
 class CVE:
     def __init__(self):
         load_dotenv()
-        self._api_key = os.getenv('NIST_API_KEY')
         self._retry_sleep = 5    # In seconds
 
     def __send_request(self,url):
@@ -41,7 +40,7 @@ class CVE:
             
 
     def get_number_existing_cves(self):
-        response = self.__send_request("https://services.nvd.nist.gov/rest/json/cves/1.0/?apiKey={}&resultsPerPage=1".format(self._api_key))    
+        response = self.__send_request("https://services.nvd.nist.gov/rest/json/cves/2.0/?resultsPerPage=1")
         return response["totalResults"]
 
     # 'filename': name of the output file (the default one is 'dump.json')
@@ -49,21 +48,19 @@ class CVE:
         idx = 0
         result_per_page = 2000
         total_results = self.get_number_existing_cves()
-
+        print("CVEs found: {}".format(str(total_results)))
         print("Starting retrieving data...")
         while idx < total_results:
             print("{}% complete. Processing CVEs entries from indexes {} to {}".format((idx//total_results)*100,idx, idx + result_per_page - 1))
             
-            response = self.__send_request("https://services.nvd.nist.gov/rest/json/cves/1.0/?apiKey={}&resultsPerPage={}&startIndex={}".format(self._api_key, result_per_page,idx))
-
+            response = self.__send_request("https://services.nvd.nist.gov/rest/json/cves/2.0/?resultsPerPage={}&startIndex={}".format(result_per_page,idx))
             if not idx:
                 with open("{}.json".format(filename), "w") as file:
                     json.dump(response, file, indent = 4)
             else:
                 with open("{}.json".format(filename), "r+") as file:
                     data = json.load(file)
-                    data["result"]["CVE_Items"].extend(response["result"]["CVE_Items"])
-
+                    data["vulnerabilities"].extend(response["vulnerabilities"])
                     file.seek(0)
                     json.dump(data, file, indent = 4)
 
@@ -95,19 +92,18 @@ class CVE:
         with open(dump_filename if not update_max_count else "update{}.json".format(update_max_count), "r") as file:
             try:
                 data = json.load(file)
-                last_update_date = data["result"]["CVE_data_timestamp"][:-1] + ":00:000%20UTC%2B00:00"
+                last_update_date = data["timestamp"][:-1] + "%2B00:00"
             except:
                 print("Oops, it was not possible open the specified file :(")
                 return
 
-        # Dates must follow "yyyy-MM-ddTHH:mm:ss:SSS Z" format (e.g. 2022-07-23T16:32:20:265 UTC+01:00) where either the space and the plus must be rightly encoded (' '=%20  +=%2B)
-        current_date = datetime.utcnow().isoformat(sep='T', timespec='milliseconds').replace(".",":") + "%20UTC%2B00:00"
-
+        # Dates must follow "yyyy-MM-ddTHH:mm:ss.SSS%2B01:00" format (e.g. 2022-07-23T16:32:20.265 UTC+01:00) where either the space and the plus must be rightly encoded (' '=%20  +=%2B)
+        current_date = datetime.utcnow().isoformat(sep='T', timespec='milliseconds') + "%2B00:00"
         idx = 0
         result_per_page = 2000
         print("Starting retrieving updates...")
         while True:
-            response = self.__send_request("https://services.nvd.nist.gov/rest/json/cves/1.0/?apiKey={}&resultsPerPage={}&startIndex={}&modStartDate={}&modEndDate={}".format(self._api_key,result_per_page,idx,last_update_date,current_date))
+            response = self.__send_request("https://services.nvd.nist.gov/rest/json/cves/2.0/?resultsPerPage={}&startIndex={}&lastModStartDate={}&lastModEndDate={}".format(result_per_page,idx,last_update_date,current_date))
             if idx >= response["totalResults"]:
                 break
             
@@ -169,7 +165,7 @@ class CNA:
         # This option force to not physically open a browser tab
         options = Options()
         options.add_argument("--headless")
-
+        options.add_argument("--log-level=3")
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
         driver2 = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
@@ -180,10 +176,11 @@ class CNA:
 
         cna_partners = driver.find_elements(By.XPATH, "//table/tbody/tr")
         cnas = []
+        i = 0
         for partner in cna_partners:
+            i = i + 1
             link = partner.find_element(By.XPATH,"th[@data-label='Partner']/a").get_attribute('href')
             name = partner.find_element(By.XPATH,"th[@data-label='Partner']/a").text
-            
             # Root Scope - CNA Scope
             scopes = []
             scopes_raw = partner.find_element(By.XPATH,"td[@data-label='Scope']").text
@@ -210,7 +207,6 @@ class CNA:
                     "name": policy.text.replace("View", "").strip(), 
                     "link": policy.get_attribute('href') 
                 })
-
             program_roles_raw = driver2.find_elements(By.XPATH,"//th[contains(text(),'Program Role')]/following-sibling::td/ul/li")
             program_roles = [ role.text for role in program_roles_raw ]
             
@@ -237,7 +233,6 @@ class CNA:
                 "contacts": contacts,
                 "scopes": scopes
             }
-
             # Not always present
             root = driver2.find_elements(By.XPATH,"//th[contains(text(),'Root') and not(contains(text(),'Top-Level'))]")
             if(len(root)):
@@ -245,7 +240,7 @@ class CNA:
                     "name": root[0].find_element(By.XPATH,"following-sibling::td/a").text,
                     "link_more_info": root[0].find_element(By.XPATH,"following-sibling::td/a").get_attribute('href')
                 }
-
+            print("CNAs found: {}".format(i))
             cnas.append(cna_entry)
 
         with open("{}.json".format(filename), "w") as file:
@@ -264,9 +259,9 @@ if __name__ == "__main__":
     cwes = CWE()
     capec = CAPEC()
     cna = CNA()
-    
-    # cves.create_cves_dump()
-    # cves.get_cves_updates("dump.json")
-    # cwes.create_cwes_dump()
-    # capec.create_capec_dump()
-    # cna.create_cna_dump()
+
+    #cves.create_cves_dump()
+    #cves.get_cves_updates("dump.json")
+    cwes.create_cwes_dump()
+    capec.create_capec_dump()
+    cna.create_cna_dump()

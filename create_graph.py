@@ -1,6 +1,7 @@
 import requests
 import math
 import os
+from mitreattack.stix20 import MitreAttackData
 from dotenv import load_dotenv
 from neo4j import GraphDatabase
 import time
@@ -8,6 +9,7 @@ import csv
 import re
 import json
 import sys
+
 
 class CyberGraph:
 
@@ -148,35 +150,35 @@ class CyberGraph:
 
     def write_cna(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_cna, elements)
+            res = session.execute_write(self._create_cna, elements)
 
     def write_disclosure_policy(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_disclosure_policy, elements)
+            res = session.execute_write(self._create_disclosure_policy, elements)
 
     def write_organization_type(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_organization_type, elements)
+            res = session.execute_write(self._create_organization_type, elements)
     
     def write_security_advisory(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_security_advisory, elements)
+            res = session.execute_write(self._create_security_advisory, elements)
 
     def write_contact_info(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_contact_info, elements)
+            res = session.execute_write(self._create_contact_info, elements)
 
     def write_country(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_country, elements)
+            res = session.execute_write(self._create_country, elements)
 
     def write_scope(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_scope, elements)
+            res = session.execute_write(self._create_scope, elements)
     
     def write_cna_parent(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_cna_parent, elements)
+            res = session.execute_write(self._create_cna_parent, elements)
 
     def handle_cna(self, source_filename):
         with open(source_filename, mode='r') as file:
@@ -429,63 +431,63 @@ class CyberGraph:
 
     def write_cwe(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_cwe, elements)
+            res = session.execute_write(self._create_cwe, elements)
 
     def write_cwe_status(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_cwe_status, elements)
+            res = session.execute_write(self._create_cwe_status, elements)
 
     def write_cwe_related_cwe(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_cwe_related_cwe, elements)
+            res = session.execute_write(self._create_cwe_related_cwe, elements)
 
     def write_weakness_ordinality(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_weakness_ordinality, elements)
+            res = session.execute_write(self._create_weakness_ordinality, elements)
 
     def write_cwe_alternative_term(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_cwe_alternative_term, elements)
+            res = session.execute_write(self._create_cwe_alternative_term, elements)
 
     def write_phase(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_phase, elements)
+            res = session.execute_write(self._create_phase, elements)
 
     def write_security_property(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_security_property, elements)
+            res = session.execute_write(self._create_security_property, elements)
 
     def write_impact(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_impact, elements)
+            res = session.execute_write(self._create_impact, elements)
 
     def write_cwe_consequence(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_cwe_consequence, elements)
+            res = session.execute_write(self._create_cwe_consequence, elements)
 
     def delete_cwe_consequences(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._remove_cwe_consequences, elements)
+            res = session.execute_write(self._remove_cwe_consequences, elements)
 
     def write_detection_method(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_detection_method, elements)
+            res = session.execute_write(self._create_detection_method, elements)
 
     def write_cwe_mitigation(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_cwe_mitigation, elements)
+            res = session.execute_write(self._create_cwe_mitigation, elements)
 
     def write_functional_area(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_functional_area, elements)
+            res = session.execute_write(self._create_functional_area, elements)
 
     def write_affected_resource(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_affected_resource, elements)
+            res = session.execute_write(self._create_affected_resource, elements)
 
     def write_cwe_related_capec(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_cwe_related_capec, elements)
+            res = session.execute_write(self._create_cwe_related_capec, elements)
 
     def handle_cwe(self, source_filename):
         ordinality_descriptions = {
@@ -503,11 +505,11 @@ class CyberGraph:
         mitigation_regex = re.compile("^(?:PHASE:(.*?))?(?::STRATEGY:(.*?))?[:]*(?:DESCRIPTION:(.*?))?(?::EFFECTIVENESS:(.*))?$")
 
         cwe_count = 0
-        with open(source_filename, mode='r') as csv_file:
+        with open(source_filename, mode='r', encoding='utf-8') as csv_file:
             csv_reader = csv.DictReader(csv_file)
             cwe_count = sum(1 for row in csv_reader) - 1
 
-        with open(source_filename, mode='r') as csv_file:
+        with open(source_filename, mode='r', encoding='utf-8') as csv_file:
             csv_reader = csv.DictReader(csv_file)
             for idx,cwe in enumerate(csv_reader,1):
                 self.printProgressBar(idx,cwe_count,"CWE")
@@ -803,63 +805,63 @@ class CyberGraph:
 
     def write_capec(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_capec, elements)
+            res = session.execute_write(self._create_capec, elements)
 
     def write_capec_status(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_capec_status, elements)
+            res = session.execute_write(self._create_capec_status, elements)
 
     def write_capec_alternative_term(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_capec_alternative_term, elements)
+            res = session.execute_write(self._create_capec_alternative_term, elements)
 
     def write_capec_scale_level(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_capec_scale_level, elements)
+            res = session.execute_write(self._create_capec_scale_level, elements)
 
     def write_execution_flow(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_execution_flow, elements)
+            res = session.execute_write(self._create_execution_flow, elements)
 
     def write_technique(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_technique, elements)
+            res = session.execute_write(self._create_technique, elements)
 
     def write_prerequisite(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_prerequisite, elements)
+            res = session.execute_write(self._create_prerequisite, elements)
 
     def write_skill(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_skill, elements)
+            res = session.execute_write(self._create_skill, elements)
 
     def write_asset(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_asset, elements)
+            res = session.execute_write(self._create_asset, elements)
 
     def write_indicator(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_indicator, elements)
+            res = session.execute_write(self._create_indicator, elements)
 
     def delete_capec_consequences(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._remove_capec_consequences, elements)
+            res = session.execute_write(self._remove_capec_consequences, elements)
 
     def write_capec_consequence(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_capec_consequence, elements)
+            res = session.execute_write(self._create_capec_consequence, elements)
 
     def write_capec_mitigation(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_capec_mitigation, elements)
+            res = session.execute_write(self._create_capec_mitigation, elements)
 
     def write_capec_example(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_capec_example, elements)
+            res = session.execute_write(self._create_capec_example, elements)
 
     def write_capec_related_capec(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_capec_related_capec, elements)
+            res = session.execute_write(self._create_capec_related_capec, elements)
 
     def handle_capec(self, source_filename):
         alternative_term_regex = re.compile("^TERM:(.*?)(?::DESCRIPTION[:]*(.*))?$")
@@ -869,11 +871,11 @@ class CyberGraph:
         related_capec_regex = re.compile("^NATURE:(.*?):CAPEC ID:(.*)$")
 
         capec_count = 0
-        with open(source_filename, mode='r') as csv_file:
+        with open(source_filename, mode='r', encoding='utf-8') as csv_file:
             csv_reader = csv.DictReader(csv_file)
             capec_count = sum(1 for row in csv_reader) - 1
 
-        with open(source_filename, mode='r') as csv_file:
+        with open(source_filename, mode='r', encoding='utf-8') as csv_file:
             csv_reader = csv.DictReader(csv_file)
             for idx,capec in enumerate(csv_reader,1):
                 self.printProgressBar(idx,capec_count,"CAPEC")
@@ -1062,7 +1064,7 @@ class CyberGraph:
         # MATCH (ref:Reference:''' + elements["tags"] + ''') WHERE SIZE(LABELS(ref)) = $countLabels
         tx.run("""
             MATCH (cve:CVE { id:$cveId })
-            MERGE (ref""" + elements["labels"] + """ { url:$url })
+            MERGE (ref { url:$url })
             MERGE (cve)-[:HAS_LINK_TO]->(ref)
             """,
             url=elements["url"],
@@ -1096,98 +1098,217 @@ class CyberGraph:
                        
     def write_cve(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_cve, elements)
+            res = session.execute_write(self._create_cve, elements)
 
     def write_cve_related_cna(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_cve_related_cna, elements)
+            res = session.execute_write(self._create_cve_related_cna, elements)
 
     def write_cve_related_cwe(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_cve_related_cwe, elements)
+            res = session.execute_write(self._create_cve_related_cwe, elements)
     
     def write_metric(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_metric, elements)
+            res = session.execute_write(self._create_metric, elements)
 
     def write_reference(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_reference, elements)
+            res = session.execute_write(self._create_reference, elements)
 
     def write_vendor_and_product(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_vendor_and_product, elements)
+            res = session.execute_write(self._create_vendor_and_product, elements)
 
     def write_version(self, elements):
         with self.driver.session() as session:
-            res = session.write_transaction(self._create_version, elements)
+            res = session.execute_write(self._create_version, elements)
 
     def handle_cve(self, source_filename):
-        with open(source_filename, mode="r") as file:
+        with open(source_filename, mode="r", encoding='utf-8') as file:
             data = json.load(file)
-            cve_count = len(data["result"]["CVE_Items"])
-            for idx,cve in enumerate(data["result"]["CVE_Items"],1):
+            cve_count = len(data["vulnerabilities"])
+            for idx,cve in enumerate(data["vulnerabilities"],1):
                 self.printProgressBar(idx,cve_count,"CVE")
 
                 self.write_cve({
-                    "id":cve["cve"]["CVE_data_meta"]["ID"],
-                    "description":cve["cve"]["description"]["description_data"][0]["value"],
-                    "publishedDate":cve["publishedDate"],
-                    "lastModifiedDate":cve["lastModifiedDate"],
+                    "id":cve["cve"]["id"],
+                    "description":cve["cve"]["descriptions"][0]["value"],
+                    "publishedDate":cve["cve"]["published"],
+                    "lastModifiedDate":cve["cve"]["lastModified"],
                 })
                 # Before run it be sure to have run "handle_cna" first!
                 self.write_cve_related_cna({
-                    "cnaEmail":cve["cve"]["CVE_data_meta"]["ASSIGNER"],
-                    "cveId":cve["cve"]["CVE_data_meta"]["ID"]
+                    "cnaEmail":cve["cve"]["sourceIdentifier"],
+                    "cveId":cve["cve"]["id"]
                 })
                 # If there are no CWE related the "description" array is empty, so no additional check needed.
-                for cwe in cve["cve"]["problemtype"]["problemtype_data"][0]["description"]:
-                    self.write_cve_related_cwe({
-                        "cweId":cwe["value"].replace("CWE-",""),
-                        "cveId":cve["cve"]["CVE_data_meta"]["ID"]
-                    })
-                if "baseMetricV3" in cve["impact"]:
-                    self.write_metric({
-                        "vector":cve["impact"]["baseMetricV3"]["cvssV3"]["vectorString"].replace("CVSS:3.1/",""),
-                        "baseScore":cve["impact"]["baseMetricV3"]["cvssV3"]["baseScore"],
-                        "severity":cve["impact"]["baseMetricV3"]["cvssV3"]["baseSeverity"].capitalize(),
-                        "exploitabilityScore":cve["impact"]["baseMetricV3"]["exploitabilityScore"],
-                        "impactScore":cve["impact"]["baseMetricV3"]["impactScore"],
-                        "cveId":cve["cve"]["CVE_data_meta"]["ID"]
-                    })
-                for ref in cve["cve"]["references"]["reference_data"]:
-                    additionalLabels = ":".join(map(lambda tag: tag.title(),ref["tags"])).replace(" ","").replace("/","").replace("\\","").replace("|","").replace("-","")
-                    additionalLabels = additionalLabels if not additionalLabels else ":" + additionalLabels
+                if "weaknesses" in cve["cve"]:
+                    for cwe in cve["cve"]["weaknesses"]:
+                        self.write_cve_related_cwe({
+                            "cweId":cwe['description'][0]["value"].replace("CWE-",""),
+                            "cveId":cve["cve"]["id"]
+                        })
+                metric = {
+                    "vector": "NULL",
+                    "baseScore": "NULL",
+                    "severity": "NULL",
+                    "exploitabilityScore": "NULL",
+                    "impactScore": "NULL",
+                    "cveId": "NULL"
+                }
+                if "cvssMetricV2" in cve["cve"]["metrics"]:
+                    metric = {
+                        "vector":cve["cve"]["metrics"]["cvssMetricV2"][0]["cvssData"]["vectorString"],
+                        "baseScore":cve["cve"]["metrics"]["cvssMetricV2"][0]["cvssData"]["baseScore"],
+                        "severity":cve["cve"]["metrics"]["cvssMetricV2"][0]["baseSeverity"].capitalize(),
+                        "exploitabilityScore":cve["cve"]["metrics"]["cvssMetricV2"][0]["exploitabilityScore"],
+                        "impactScore":cve["cve"]["metrics"]["cvssMetricV2"][0]["impactScore"],
+                        "cveId":cve["cve"]["id"]
+                    }
+                if "cvssMetricV30" in cve["cve"]["metrics"]:
+                    metric = {
+                        "vector":cve["cve"]["metrics"]["cvssMetricV30"][0]["cvssData"]["vectorString"],
+                        "baseScore":cve["cve"]["metrics"]["cvssMetricV30"][0]["cvssData"]["baseScore"],
+                        "severity":cve["cve"]["metrics"]["cvssMetricV30"][0]["cvssData"]["baseSeverity"].capitalize(),
+                        "exploitabilityScore":cve["cve"]["metrics"]["cvssMetricV30"][0]["exploitabilityScore"],
+                        "impactScore":cve["cve"]["metrics"]["cvssMetricV30"][0]["impactScore"],
+                        "cveId":cve["cve"]["id"]
+                    }
+                if "cvssMetricV31" in cve["cve"]["metrics"]:
+                    metric = {
+                        "vector":cve["cve"]["metrics"]["cvssMetricV31"][0]["cvssData"]["vectorString"],
+                        "baseScore":cve["cve"]["metrics"]["cvssMetricV31"][0]["cvssData"]["baseScore"],
+                        "severity":cve["cve"]["metrics"]["cvssMetricV31"][0]["cvssData"]["baseSeverity"].capitalize(),
+                        "exploitabilityScore":cve["cve"]["metrics"]["cvssMetricV31"][0]["exploitabilityScore"],
+                        "impactScore":cve["cve"]["metrics"]["cvssMetricV31"][0]["impactScore"],
+                        "cveId":cve["cve"]["id"]
+                    }
+                self.write_metric(metric)
+                for ref in cve["cve"]["references"]:
                     self.write_reference({
-                        "labels":":Reference" + additionalLabels,
                         "url":ref["url"],
-                        "cveId":cve["cve"]["CVE_data_meta"]["ID"]
+                        "cveId":cve["cve"]["id"]
                     })
 
                 # TODO - Possible integration with https://nvd.nist.gov/developers/products
-                for node in cve["configurations"]["nodes"]:
-                    for cpe in node["cpe_match"]:
-                        cpe_elements = cpe["cpe23Uri"].split(":")
+                if "configurations" in cve["cve"]:#TODO: Check se c'è configurations, alcune CVE non hanno la chiave
+                    for node in cve["cve"]["configurations"][0]["nodes"]:
+                        for cpe in node["cpeMatch"]:
+                            cpe_elements = cpe["criteria"].split(":")
 
-                        self.write_vendor_and_product({
-                            "vendorName":cpe_elements[3],
-                            "productName":cpe_elements[4],
-                            "productType":("Application" if cpe_elements[2]=="a" else "Hardware" if cpe_elements[2]=="h" else "Operating Systems"),
-                        })
-
-                        # TODO - At the moment the graph doesn't model the combination AND/OR of products
-                        # (es. CVE-2019-5163, CVE-2021-43803) or CVE-2017-20026 (where there's no "versionStartIncluding")
-                        if "versionStartIncluding" in cpe:
-                            self.write_version({
-                                "cveId":cve["cve"]["CVE_data_meta"]["ID"],
+                            self.write_vendor_and_product({
+                                "vendorName":cpe_elements[3],
                                 "productName":cpe_elements[4],
-                                "vulnerable":cpe["vulnerable"],
-                                "cpe23Uri":cpe["cpe23Uri"],
-                                "versionStartIncluding":cpe["versionStartIncluding"],
-                                "versionEndExcluding":cpe["versionEndExcluding"] if "versionEndExcluding" in cpe else None
+                                "productType":("Application" if cpe_elements[2]=="a" else "Hardware" if cpe_elements[2]=="h" else "Operating Systems"),
                             })
 
+                            # TODO - At the moment the graph doesn't model the combination AND/OR of products
+                            # (es. CVE-2019-5163, CVE-2021-43803) or CVE-2017-20026 (where there's no "versionStartIncluding")
+                            if "versionStartIncluding" in cpe:
+                                self.write_version({
+                                    "cveId":cve["cve"]["id"],
+                                    "productName":cpe_elements[4],
+                                    "vulnerable":cpe["vulnerable"],
+                                    "cpe23Uri":cpe["criteria"],
+                                    "versionStartIncluding":cpe["versionStartIncluding"],
+                                    "versionEndExcluding":cpe["versionEndExcluding"] if "versionEndExcluding" in cpe else None
+                                })
+
             print("")
+
+    # ==============================================
+    # =============== HANDLE MITRE ===================
+    # ==============================================
+    
+    @staticmethod
+    def _create_tactic(tx, elements):
+        tx.run("""
+            MERGE (tactic:TACTIC { id:$id, name:$name, description:$description, link:$link })
+            """, 
+            id=elements["external_id"],
+            name=elements["name"],
+            description=elements["description"],
+            link=elements["link"])
+
+    @staticmethod
+    def _create_mitre_technique(tx, elements):
+        tx.run("""
+            MATCH (tactic:TACTIC { id:$tacId })
+            MERGE (tec:TECHNIQUE { id:$id, name:$name, description:$description, link:$link})
+            MERGE (tactic)-[:HAS_MITRE_TECHNIQUE]->(tec)
+            """, 
+            tacId=elements["tac_external_id"],
+            id=elements["external_id"],
+            name=elements["name"],
+            description=elements["description"],
+            link=elements["link"])
+
+    def write_tactic(self, elements):
+        with self.driver.session() as session:
+            res = session.execute_write(self._create_tactic, elements)
+
+    def write_mitre_technique(self, elements):
+        with self.driver.session() as session:
+            res = session.execute_write(self._create_mitre_technique, elements)
+
+    # ==============================================
+    # =============== HANDLE GROUPS ===================
+    # ==============================================
+
+    
+    @staticmethod
+    def _create_GROUP(tx, elements):
+        tx.run("MERGE (x:THREAT_ACTOR { name:$name, description:$description, link:$link })", 
+            name=elements["name"],
+            description=elements["description"],
+            link=elements["link"])
+
+    @staticmethod
+    def _create_alias(tx, elements):
+        tx.run("""
+                MATCH (x:THREAT_ACTOR { name:$name })
+                MERGE (y:THREAT_ACTOR_ALIAS { name:$alias})
+                MERGE (x)-[:HAS_ALIAS]->(y)
+                """,
+                name = elements["name"],
+                alias=elements["alias"])
+
+    @staticmethod
+    def _create_group_with_technique(tx, elements):
+        tx.run("""
+                MATCH (x:TECHNIQUE { id:$id })
+                MERGE (y:THREAT_ACTOR { name:$name, description:$description, link:$link})
+                MERGE (x)-[:IS_USED_BY]->(y)
+                """,
+                id = elements["tecId"],
+                name = elements["name"],
+                description = elements["description"],
+                link = elements["link"])
+              
+    def write_group(self, elements):
+        with self.driver.session() as session:
+            res = session.execute_write(self._create_GROUP, elements)
+
+    def write_alias(self, elements):
+        with self.driver.session() as session:
+            res = session.execute_write(self._create_alias, elements)
+
+    def write_group_with_technique(self, elements):
+        with self.driver.session() as session:
+            res = session.execute_write(self._create_group_with_technique, elements)
+    
+    def handle_group(self, json):
+        self.write_group({
+            "name":json.get('name'),
+            "description":json.get("description"),
+            "link":json.get("link")
+        })
+        for item in json.get('aliases'):
+            self.write_alias({
+                'name':json.get('name'),
+                'alias':item
+            })
 
 if __name__ == "__main__":
     load_dotenv()
@@ -1198,9 +1319,65 @@ if __name__ == "__main__":
 
     cyberGraph = CyberGraph(neo4j_uri, neo4j_username, neo4j_password)
 
-    # cyberGraph.handle_cna("cna.json")
-    # cyberGraph.handle_cwe("cwe.csv")
-    # cyberGraph.handle_capec("capec.csv")
-    # cyberGraph.handle_cve("dump.json")
-
+    #cyberGraph.handle_cna("cna.json")
+    #cyberGraph.handle_cwe("cwe.csv")
+    #cyberGraph.handle_capec("capec.csv")
+    #cyberGraph.handle_cve("dump.json")
+    mitre_attack_data = MitreAttackData("enterprise-attack.json")
+    techniques = []
+    tactics = mitre_attack_data.get_tactics(remove_revoked_deprecated=True)
+    tactics_new = []
+    for item in tactics:
+        for item2 in item.get('external_references'):
+            if item2.get('source_name') == "mitre-attack":
+                tactics_new.append({
+                    'external_id':item2.get('external_id'),
+                    'name':item.get('name'),
+                    'description':item.get('description'),
+                    'link':item2.get('url'),
+                    "short-name":item.get('x_mitre_shortname'),
+                    'techniques':[]
+                })
+    for tactic in tactics_new:
+        techniques = mitre_attack_data.get_techniques_by_tactic(tactics_new[0].get('short-name'), "enterprise-attack", remove_revoked_deprecated=True)
+        for tec in techniques:
+            for tec2 in tec.get('external_references'):
+                if tec2.get('source_name') == "mitre-attack":
+                    tactic.get('techniques').append({
+                        'external_id':tec2.get('external_id'),
+                        'name':tec.get('name'),
+                        'description':tec.get('description'),
+                        'link':tec2.get('url'),
+                    })
+    for tac in tactics_new:
+        cyberGraph.write_tactic({
+            'external_id':tac.get('external_id'),
+            'name':tac.get('name'),
+            'description':tac.get('description'),
+            'link':tac.get('link')
+        }) 
+        for tec in tac.get('techniques'):
+            cyberGraph.write_mitre_technique({
+                'tac_external_id':tac.get('external_id'),
+                'external_id':tec.get('external_id'),
+                'name':tec.get('name'),
+                'description':tec.get('description'),
+                'link':tec.get('link')
+        })
+    gg = mitre_attack_data.get_all_groups_using_all_techniques()
+    for id, groups in gg.items():
+        attack_id = mitre_attack_data.get_attack_id(id)
+        for gg in groups:
+            for ex in gg.get('object').get('external_references'):
+                if ex.get('source_name') == "mitre-attack":
+                    cyberGraph.write_group_with_technique({
+                        "name":gg.get('object').get('name'),
+                        "description":gg.get('object').get('description'),
+                        "link":ex.get('url'),
+                        "tecId":attack_id,
+                })
+        print(f"* {attack_id} - used by {len(groups)} {'group' if len(groups) == 1 else 'groups'}")
+    groups = mitre_attack_data.get_groups(remove_revoked_deprecated=True)  
+    print("** Analysis ended**")
     cyberGraph.close()
+    
