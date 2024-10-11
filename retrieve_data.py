@@ -21,7 +21,6 @@ from selenium.webdriver.common.by import By
 class CVE:
     def __init__(self, year=None):
         load_dotenv()
-        self._api_key = os.getenv('NIST_API_KEY')
         self._retry_sleep = 5    # In seconds
         if(year is not None):
             self._year = year
@@ -51,7 +50,7 @@ class CVE:
         idx = 0
         result_per_page = 2000
         total_results = self.get_number_existing_cves()
-
+        print("CVEs found: {}".format(str(total_results)))
         print("Starting retrieving data...")
         while idx < total_results:
             print('{:.2f}% complete. Processing CVEs entries from indexes {} to {}'.format((idx/total_results)*100,idx, idx + result_per_page - 1))
@@ -313,9 +312,8 @@ class CPE:
                 print("Oops, it was not possible open the specified file :(")
                 return
 
-        # Dates must follow "yyyy-MM-ddTHH:mm:ss:SSS Z" format (e.g. 2022-07-23T16:32:20:265 UTC+01:00) where either the space and the plus must be rightly encoded (' '=%20  +=%2B)
-        current_date = datetime.utcnow().isoformat(sep='T', timespec='milliseconds').replace(".",":") + "%20UTC%2B00:00"
-
+        # Dates must follow "yyyy-MM-ddTHH:mm:ss.SSS%2B01:00" format (e.g. 2022-07-23T16:32:20.265 UTC+01:00) where either the space and the plus must be rightly encoded (' '=%20  +=%2B)
+        current_date = datetime.utcnow().isoformat(sep='T', timespec='milliseconds') + "%2B00:00"
         idx = 0
         result_per_page = 10000
         print("Starting retrieving updates...")
@@ -575,10 +573,11 @@ class CNA:
 
         cna_partners = driver.find_elements(By.XPATH, "//table/tbody/tr")
         cnas = []
+        i = 0
         for partner in cna_partners:
+            i = i + 1
             link = partner.find_element(By.XPATH,"th[@data-label='Partner']/a").get_attribute('href')
             name = partner.find_element(By.XPATH,"th[@data-label='Partner']/a").text
-            
             # Root Scope - CNA Scope
             scopes = []
             scopes_raw = partner.find_element(By.XPATH,"td[@data-label='Scope']").text
@@ -605,7 +604,6 @@ class CNA:
                     "name": policy.text.replace("View", "").strip(), 
                     "link": policy.get_attribute('href') 
                 })
-
             program_roles_raw = driver2.find_elements(By.XPATH,"//th[contains(text(),'Program Role')]/following-sibling::td/ul/li")
             program_roles = [ role.text for role in program_roles_raw ]
             
@@ -632,7 +630,6 @@ class CNA:
                 "contacts": contacts,
                 "scopes": scopes
             }
-
             # Not always present
             root = driver2.find_elements(By.XPATH,"//th[contains(text(),'Root') and not(contains(text(),'Top-Level'))]")
             if(len(root)):
@@ -640,7 +637,7 @@ class CNA:
                     "name": root[0].find_element(By.XPATH,"following-sibling::td/a").text,
                     "link_more_info": root[0].find_element(By.XPATH,"following-sibling::td/a").get_attribute('href')
                 }
-
+            print("CNAs found: {}".format(i))
             cnas.append(cna_entry)
 
         with open("{}.json".format(filename), "w") as file:

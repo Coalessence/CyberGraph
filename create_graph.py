@@ -1,6 +1,7 @@
 import requests
 import math
 import os
+from mitreattack.stix20 import MitreAttackData
 from dotenv import load_dotenv
 from neo4j import GraphDatabase
 import time
@@ -8,6 +9,7 @@ import csv
 import re
 import json
 import sys
+
 
 class CyberGraph:
 
@@ -1332,7 +1334,7 @@ class CyberGraph:
         # MATCH (ref:Reference:''' + elements["tags"] + ''') WHERE SIZE(LABELS(ref)) = $countLabels
         tx.run("""
             MATCH (cve:CVE { id:$cveId })
-            MERGE (ref""" + elements["labels"] + """ { url:$url })
+            MERGE (ref { url:$url })
             MERGE (cve)-[:HAS_LINK_TO]->(ref)
             """,
             url=elements["url"],
@@ -1396,7 +1398,7 @@ class CyberGraph:
             res = session.execute_write(self._create_version, elements)
 
     def handle_cve(self, source_filename):
-        with open(source_filename, mode="r") as file:
+        with open(source_filename, mode="r", encoding='utf-8') as file:
             data = json.load(file)
             cve_count = len(data["vulnerabilities"])
             for idx,cve in enumerate(data["vulnerabilities"],1):
@@ -1482,6 +1484,99 @@ class CyberGraph:
 
             print("")
 
+    # ==============================================
+    # =============== HANDLE MITRE ===================
+    # ==============================================
+    
+    @staticmethod
+    def _create_tactic(tx, elements):
+        tx.run("""
+            MERGE (tactic:TACTIC { id:$id, name:$name, description:$description, link:$link })
+            """, 
+            id=elements["external_id"],
+            name=elements["name"],
+            description=elements["description"],
+            link=elements["link"])
+
+    @staticmethod
+    def _create_mitre_technique(tx, elements):
+        tx.run("""
+            MATCH (tactic:TACTIC { id:$tacId })
+            MERGE (tec:TECHNIQUE { id:$id, name:$name, description:$description, link:$link})
+            MERGE (tactic)-[:HAS_MITRE_TECHNIQUE]->(tec)
+            """, 
+            tacId=elements["tac_external_id"],
+            id=elements["external_id"],
+            name=elements["name"],
+            description=elements["description"],
+            link=elements["link"])
+
+    def write_tactic(self, elements):
+        with self.driver.session() as session:
+            res = session.execute_write(self._create_tactic, elements)
+
+    def write_mitre_technique(self, elements):
+        with self.driver.session() as session:
+            res = session.execute_write(self._create_mitre_technique, elements)
+
+    # ==============================================
+    # =============== HANDLE GROUPS ===================
+    # ==============================================
+
+    
+    @staticmethod
+    def _create_GROUP(tx, elements):
+        tx.run("MERGE (x:THREAT_ACTOR { name:$name, description:$description, link:$link })", 
+            name=elements["name"],
+            description=elements["description"],
+            link=elements["link"])
+
+    @staticmethod
+    def _create_alias(tx, elements):
+        tx.run("""
+                MATCH (x:THREAT_ACTOR { name:$name })
+                MERGE (y:THREAT_ACTOR_ALIAS { name:$alias})
+                MERGE (x)-[:HAS_ALIAS]->(y)
+                """,
+                name = elements["name"],
+                alias=elements["alias"])
+
+    @staticmethod
+    def _create_group_with_technique(tx, elements):
+        tx.run("""
+                MATCH (x:TECHNIQUE { id:$id })
+                MERGE (y:THREAT_ACTOR { name:$name, description:$description, link:$link})
+                MERGE (x)-[:IS_USED_BY]->(y)
+                """,
+                id = elements["tecId"],
+                name = elements["name"],
+                description = elements["description"],
+                link = elements["link"])
+              
+    def write_group(self, elements):
+        with self.driver.session() as session:
+            res = session.execute_write(self._create_GROUP, elements)
+
+    def write_alias(self, elements):
+        with self.driver.session() as session:
+            res = session.execute_write(self._create_alias, elements)
+
+    def write_group_with_technique(self, elements):
+        with self.driver.session() as session:
+            res = session.execute_write(self._create_group_with_technique, elements)
+    
+    def handle_group(self, json):
+        self.write_group({
+            "name":json.get('name'),
+            "description":json.get("description"),
+            "link":json.get("link")
+        })
+        for item in json.get('aliases'):
+            self.write_alias({
+                'name':json.get('name'),
+                'alias':item
+            })
+
 if __name__ == "__main__":
     load_dotenv()
 
@@ -1494,8 +1589,62 @@ if __name__ == "__main__":
     #cyberGraph.handle_cna("cna.json")
     #cyberGraph.handle_cwe("cwe.csv")
     #cyberGraph.handle_capec("capec.csv")
-    cyberGraph.handle_cpe("cpe.json")
-    cyberGraph.handle_cve("dump.json")
-    #cyberGraph.handle_epss("epss.csv")
-
+    #cyberGraph.handle_cve("dump.json")
+    mitre_attack_data = MitreAttackData("enterprise-attack.json")
+    techniques = []
+    tactics = mitre_attack_data.get_tactics(remove_revoked_deprecated=True)
+    tactics_new = []
+    for item in tactics:
+        for item2 in item.get('external_references'):
+            if item2.get('source_name') == "mitre-attack":
+                tactics_new.append({
+                    'external_id':item2.get('external_id'),
+                    'name':item.get('name'),
+                    'description':item.get('description'),
+                    'link':item2.get('url'),
+                    "short-name":item.get('x_mitre_shortname'),
+                    'techniques':[]
+                })
+    for tactic in tactics_new:
+        techniques = mitre_attack_data.get_techniques_by_tactic(tactics_new[0].get('short-name'), "enterprise-attack", remove_revoked_deprecated=True)
+        for tec in techniques:
+            for tec2 in tec.get('external_references'):
+                if tec2.get('source_name') == "mitre-attack":
+                    tactic.get('techniques').append({
+                        'external_id':tec2.get('external_id'),
+                        'name':tec.get('name'),
+                        'description':tec.get('description'),
+                        'link':tec2.get('url'),
+                    })
+    for tac in tactics_new:
+        cyberGraph.write_tactic({
+            'external_id':tac.get('external_id'),
+            'name':tac.get('name'),
+            'description':tac.get('description'),
+            'link':tac.get('link')
+        }) 
+        for tec in tac.get('techniques'):
+            cyberGraph.write_mitre_technique({
+                'tac_external_id':tac.get('external_id'),
+                'external_id':tec.get('external_id'),
+                'name':tec.get('name'),
+                'description':tec.get('description'),
+                'link':tec.get('link')
+        })
+    gg = mitre_attack_data.get_all_groups_using_all_techniques()
+    for id, groups in gg.items():
+        attack_id = mitre_attack_data.get_attack_id(id)
+        for gg in groups:
+            for ex in gg.get('object').get('external_references'):
+                if ex.get('source_name') == "mitre-attack":
+                    cyberGraph.write_group_with_technique({
+                        "name":gg.get('object').get('name'),
+                        "description":gg.get('object').get('description'),
+                        "link":ex.get('url'),
+                        "tecId":attack_id,
+                })
+        print(f"* {attack_id} - used by {len(groups)} {'group' if len(groups) == 1 else 'groups'}")
+    groups = mitre_attack_data.get_groups(remove_revoked_deprecated=True)  
+    print("** Analysis ended**")
     cyberGraph.close()
+    
