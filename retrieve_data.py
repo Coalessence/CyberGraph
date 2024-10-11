@@ -263,7 +263,7 @@ class CPE:
     
     def create_cpes_dump(self, filename="dump"):
         idx = 0
-        result_per_page = 10000
+        result_per_page = 2000
         total_results = self.get_number_existing_cpes()
 
         print("Starting retrieving data...")

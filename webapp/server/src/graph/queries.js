@@ -15,11 +15,12 @@ const firstQuery = async ({ jsonString }) => {
         res = await session.executeRead((tx) => {
             return tx.run(
                 `UNWIND apoc.convert.fromJsonList($values) AS query
-                 OPTIONAL MATCH (metric:Metric)<-[:HAS_METRIC]-(cve:CVE)-[aff:AFFECTS]->(prd:Product)
+                 OPTIONAL MATCH (metric:Metric)<-[:HAS_METRIC]-(cve:CVE)-[aff:AFFECTS]->(prd:Product)-[:HAS_CPE]->(cpe:CPE)
                  WHERE toLower(prd.name)=toLower(query.technology) AND aff.versionStartIncluding <= query.version <= COALESCE(aff.versionEndExcluding, '99.9.9')
                  OPTIONAL MATCH (cve)-[:HAS_LINK_TO]->(ref:Patch)
                  OPTIONAL MATCH (cve)-[:HAS_EPSS]->(epss:EPSS)
-                 RETURN prd.name AS technology, round(epss.probability*metric.baseScore, 1) as probability, cve.id AS cve, cve.description AS description, metric.baseScore AS score, collect(DISTINCT ref.url) AS links
+                 OPTIONAL MATCH (cpe)-[:HAS_TITLE]->(ti:Title{language: 'en'})
+                 RETURN prd.name AS technology, ti.title as complete, round(epss.probability*metric.baseScore, 1) as probability, cve.id AS cve, cve.description AS description, metric.baseScore AS score, collect(DISTINCT ref.url) AS links
                  ORDER BY probability DESC`,
                 {
                     values: jsonString,
@@ -49,7 +50,7 @@ const concernQuery = async () => {
         res = await session.executeRead((tx) => {
             return tx.run(
                 `
-                 OPTIONAL MATCH (metric:Metric)<-[:HAS_METRIC]-(cve:CVE)-[aff:AFFECTS]->(prd:Product)
+                 OPTIONAL MATCH (metric:Metric)<-[:HAS_METRIC]-(cve:CVE)-[aff:AFFECTS]->(prd:Product)-[:HAS_CPE]->(cpe:CPE)
                  WHERE toLower(prd.name)=toLower(query.technology) AND aff.versionStartIncluding <= query.version <= COALESCE(aff.versionEndExcluding, '99.9.9')
                  OPTIONAL MATCH (cve)-[:HAS_LINK_TO]->(ref:Patch)
                  RETURN prd.name AS technology, cve.id AS cve, cve.description AS description, metric.baseScore AS score, collect(DISTINCT ref.url) AS links

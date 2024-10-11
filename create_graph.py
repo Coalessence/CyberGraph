@@ -1213,12 +1213,23 @@ class CyberGraph:
     def _create_cpe_title(tx, elements):
         tx.run("""
             MATCH (cpe:CPE { cpeName:$cpeName })
-            MERGE (ti:CPE_TITLE { title:$title, language:$language })
+            MERGE (ti:Title { title:$title, language:$language })
             MERGE (cpe)-[:HAS_TITLE]->(ti)
             """, 
             cpeName=elements["cpeName"],
             title=elements["title"],
             language=elements["language"])
+        
+    @staticmethod
+    def _create_cpe_refs(tx, elements):
+        tx.run("""
+            MATCH (cpe:CPE { cpeName:$cpeName })
+            MERGE (ref:Ref { ref:$ref, type:$type })
+            MERGE (cpe)-[:HAS_REF]->(ref)
+            """, 
+            cpeName=elements["cpeName"],
+            ref=elements["ref"],
+            type=elements["type"])
     
     def write_cpe(self, elements):
         with self.driver.session() as session:
@@ -1227,6 +1238,10 @@ class CyberGraph:
     def write_cpe_title(self, elements):
         with self.driver.session() as session:
             res = session.execute_write(self._create_cpe_title, elements)
+            
+    def write_cpe_refs(self, elements):
+        with self.driver.session() as session:
+            res = session.execute_write(self._create_cpe_refs, elements)
 
     def handle_cpe(self, cpe_filename):
         with open(cpe_filename, mode='r') as file:
@@ -1250,6 +1265,17 @@ class CyberGraph:
                         "title": title["title"],
                         "language": title["lang"]
                     })
+                
+                
+                #TODO little fix here if ref is there or not
+                if "refs" in cpe:
+                    for ref in cpe["refs"]:
+                        if "type" in ref:
+                            self.write_cpe_refs({
+                                "cpeName": cpe["cpeName"],
+                                "ref": ref["ref"],
+                                "type": ref["type"]
+                            })
                 
             print("")
     
@@ -1287,7 +1313,7 @@ class CyberGraph:
             """, 
             cweId=elements["cweId"],
             cveId=elements["cveId"])
-
+        
     @staticmethod
     def _create_metric(tx, elements):
         tx.run('''
@@ -1317,11 +1343,14 @@ class CyberGraph:
         tx.run('''
             MERGE (vnd:Vendor { name:$vendorName } )
             MERGE (prd:Product { name:$productName, type:$productType } )
+            MERGE (cpe:CPE { cpeName:$cpeName })
             MERGE (vnd)-[:OWN]->(prd)
+            MERGE (prd)-[:HAS_CPE]->(cpe)
             ''',
             vendorName=elements["vendorName"],
             productName=elements["productName"],
-            productType=elements["productType"])
+            productType=elements["productType"],
+            cpeName=elements["cpeName"])
 
     @staticmethod
     def _create_version(tx, elements):
@@ -1424,16 +1453,19 @@ class CyberGraph:
                             "cveId":cve["cve"]["id"]
                         })
                 # TODO - Possible integration with https://nvd.nist.gov/developers/products
+                #Be sure to have run "handle_cpe" first!
                 if("configurations" in cve["cve"]):
                     for configuration in cve["cve"]["configurations"]:
                         for node in configuration["nodes"]:
                             for cpe in node["cpeMatch"]:
+                                
                                 cpe_elements = cpe["criteria"].split(":")
 
                                 self.write_vendor_and_product({
                                     "vendorName":cpe_elements[3],
                                     "productName":cpe_elements[4],
                                     "productType":("Application" if cpe_elements[2]=="a" else "Hardware" if cpe_elements[2]=="h" else "Operating Systems"),
+                                    "cpeName":cpe["criteria"]
                                 })
 
                                 # TODO - At the moment the graph doesn't model the combination AND/OR of products
@@ -1459,10 +1491,11 @@ if __name__ == "__main__":
 
     cyberGraph = CyberGraph(neo4j_uri, neo4j_username, neo4j_password)
 
-    cyberGraph.handle_cna("cna.json")
-    cyberGraph.handle_cwe("cwe.csv")
-    cyberGraph.handle_capec("capec.csv")
+    #cyberGraph.handle_cna("cna.json")
+    #cyberGraph.handle_cwe("cwe.csv")
+    #cyberGraph.handle_capec("capec.csv")
+    cyberGraph.handle_cpe("cpe.json")
     cyberGraph.handle_cve("dump.json")
-    cyberGraph.handle_epss("epss.csv")
+    #cyberGraph.handle_epss("epss.csv")
 
     cyberGraph.close()
