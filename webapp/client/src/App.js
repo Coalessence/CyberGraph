@@ -23,7 +23,16 @@ function App() {
                 >
                     Fabio Dainese
                 </a>{" "}
-                - 2022
+                & {" "}
+                <a
+                    href="https://github.com/BrunoFrancesco97"
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={`GitHub page`}
+                >
+                     Francesco Bruno
+                </a>{" "}
+                - 2024
             </Footer>
         </Layout>
     );
