@@ -1080,67 +1080,39 @@ class CyberGraph:
     # ==============================================
     # =============== HANDLE SOURCES ===============
     # ==============================================
-    @staticmethod
-    def _create_source(tx, elements):
-        tx.run("""
-            MERGE (:SOURCE { name:$sourceName, contactMail:$sourceContactMail, created:$sourceCreated, modified:$sourceModified, })
-            """, 
-            sourceName=elements["name"],
-            sourceContactMail=elements["contactEmail"],
-            sourceCreated=elements["created"],
-            sourceModified=elements["modified"]
-            )
-        
-    @staticmethod
-    def _create_identifier(tx, elements):
-        tx.run("""
-            MATCH (source:SOURCE { name:$sourceName })
-            MERGE (id:IDENTIFIER { identifier:$identifier })
-            MERGE (source)-[:HAS_IDENTIFIER]->(id)
-            """, 
-            sourceName=elements["name"],
-            identifier=elements["identifier"])
     
     @staticmethod
     def _create_source_v2_acceptance_level(tx, elements):
         tx.run("""
-            MATCH (source:SOURCE { name:$sourceName })
+            MATCH (cna:CNA)-[:REACHABLE_BY_EMAIL]->(:ContactInfo { contact:$cnaEmail })
             MERGE (al:V2_ACCEPTANCE_LEVEL { description:$description, lastModified:$lastModified })
-            MERGE (source)-[:HAS_V2_ACCEPTANCE_LEVEL]->(al)
+            MERGE (cna)-[:HAS_V2_ACCEPTANCE_LEVEL]->(al)
             """, 
-            sourceName=elements["name"],
+            cnaEmail=elements["email"],
             description=elements["description"],
             lastModified=elements["lastModified"])
     
     @staticmethod
     def _create_source_v3_acceptance_level(tx, elements):
         tx.run("""
-            MATCH (source:SOURCE { name:$sourceName })
+            MATCH (cna:CNA)-[:REACHABLE_BY_EMAIL]->(:ContactInfo { contact:$cnaEmail })
             MERGE (al:V3_ACCEPTANCE_LEVEL { description:$description, lastModified:$lastModified })
-            MERGE (source)-[:HAS_V3_ACCEPTANCE_LEVEL]->(al)
+            MERGE (cna)-[:HAS_V3_ACCEPTANCE_LEVEL]->(al)
             """, 
-            sourceName=elements["name"],
+            cnaEmail=elements["email"],
             description=elements["description"],
             lastModified=elements["lastModified"])
     
     @staticmethod
     def _create_source_cwe_acceptance_level(tx, elements):
         tx.run("""
-            MATCH (source:SOURCE { name:$sourceName })
+            MATCH (cna:CNA)-[:REACHABLE_BY_EMAIL]->(:ContactInfo { contact:$cnaEmail })
             MERGE (al:CWE_ACCEPTANCE_LEVEL { description:$description, lastModified:$lastModified })
-            MERGE (source)-[:HAS_CWE_ACCEPTANCE_LEVEL]->(al)
+            MERGE (cna)-[:HAS_CWE_ACCEPTANCE_LEVEL]->(al)
             """, 
-            sourceName=elements["name"],
+            cnaEmail=elements["email"],
             description=elements["description"],
             lastModified=elements["lastModified"])
-
-    def write_source(self, elements):
-        with self.driver.session() as session:
-            res = session.execute_write(self._create_source, elements)
-    
-    def write_identifier(self, elements):
-        with self.driver.session() as session:
-            res = session.execute_write(self._create_identifier, elements)
             
     def write_source_v2_acceptance_level(self, elements):
         with self.driver.session() as session:
@@ -1160,37 +1132,24 @@ class CyberGraph:
             source_count = len(data["sources"])
             for idx,source in enumerate(data["sources"],1):
                 self.printProgressBar(idx,source_count,"sources")
-
-                self.write_source({
-                    "name": source["name"],
-                    "contactEmail": source["contactEmail"],
-                    "created": source["created"],
-                    "modified": source["lastModified"]
-                })
-                
-                for identifier in source["sourceIdentifiers"]:
-                    self.write_identifier({
-                        "name": source["name"],
-                        "identifier": identifier,
-                    })
                     
                 if "v2AcceptanceLevel" in source:
                     self.write_source_v2_acceptance_level({
-                        "name": source["name"],
+                        "email": source["contactEmail"],
                         "description": source["v2AcceptanceLevel"]["description"],
                         "lastModified": source["v2AcceptanceLevel"]["lastModified"]
                     })
                     
                 if "v3AcceptanceLevel" in source:
                     self.write_source_v3_acceptance_level({
-                        "name": source["name"],
+                        "email": source["contactEmail"],
                         "description": source["v3AcceptanceLevel"]["description"],
                         "lastModified": source["v3AcceptanceLevel"]["lastModified"]
                     })
                 
                 if "cweAcceptanceLevel" in source:
                     self.write_source_cwe_acceptance_level({
-                        "name": source["name"],
+                        "email": source["contactEmail"],
                         "description": source["cweAcceptanceLevel"]["description"],
                         "lastModified": source["cweAcceptanceLevel"]["lastModified"]
                     })
@@ -1201,22 +1160,11 @@ class CyberGraph:
     # ==============================================
     
     @staticmethod
-    def _create_cpe(tx, elements):
-        tx.run("""
-            MERGE (cpe:CPE { cpeName:$cpeName, cpeNameId:$cpeNameId, lastModified:$lastModified, created:$created, deprecated:$deprecated })
-            """, 
-            cpeName=elements["cpeName"],
-            cpeNameId=elements["cpeNameId"],
-            lastModified=elements["lastModified"],
-            created=elements["created"],
-            deprecated=elements["deprecated"])
-    
-    @staticmethod
     def _create_cpe_title(tx, elements):
         tx.run("""
-            MATCH (cpe:CPE { cpeName:$cpeName })
+            MATCH (:CVE)-[:AFFECTS { cpe23Uri:$cpeName }]->(p:Product)
             MERGE (ti:Title { title:$title, language:$language })
-            MERGE (cpe)-[:HAS_TITLE]->(ti)
+            MERGE (p)-[:HAS_TITLE]->(ti)
             """, 
             cpeName=elements["cpeName"],
             title=elements["title"],
@@ -1225,17 +1173,13 @@ class CyberGraph:
     @staticmethod
     def _create_cpe_refs(tx, elements):
         tx.run("""
-            MATCH (cpe:CPE { cpeName:$cpeName })
-            MERGE (ref:Ref { ref:$ref, type:$type })
-            MERGE (cpe)-[:HAS_REF]->(ref)
+            MATCH (:CVE)-[:AFFECTS { cpe23Uri:$cpeName }]->(p:Product)
+            MERGE (ref:Ref { ref:$ref})
+            MERGE (p)-[:HAS_REF {type: $type}]->(ref)
             """, 
             cpeName=elements["cpeName"],
             ref=elements["ref"],
             type=elements["type"])
-    
-    def write_cpe(self, elements):
-        with self.driver.session() as session:
-            res = session.execute_write(self._create_cpe, elements)
     
     def write_cpe_title(self, elements):
         with self.driver.session() as session:
@@ -1253,31 +1197,24 @@ class CyberGraph:
                 self.printProgressBar(idx,product_count,"products")     
                 cpe=product["cpe"]
                 
-                self.write_cpe({
-                    "cpeName": cpe["cpeName"],
-                    "cpeNameId": cpe["cpeNameId"],
-                    "lastModified": cpe["lastModified"],
-                    "created": cpe["created"],
-                    "deprecated": cpe["deprecated"]
-                })
-                
-                for title in cpe["titles"]:
-                    self.write_cpe_title({
-                        "cpeName": cpe["cpeName"],
-                        "title": title["title"],
-                        "language": title["lang"]
-                    })
-                
-                
-                #TODO little fix here if ref is there or not
-                if "refs" in cpe:
-                    for ref in cpe["refs"]:
-                        if "type" in ref:
-                            self.write_cpe_refs({
-                                "cpeName": cpe["cpeName"],
-                                "ref": ref["ref"],
-                                "type": ref["type"]
-                            })
+                if not cpe["deprecated"]:
+                    for title in cpe["titles"]:
+                        self.write_cpe_title({
+                            "cpeName": cpe["cpeName"],
+                            "title": title["title"],
+                            "language": title["lang"]
+                        })
+                    
+                    
+                    #TODO little fix here if ref is there or not
+                    if "refs" in cpe:
+                        for ref in cpe["refs"]:
+                            if "type" in ref:
+                                self.write_cpe_refs({
+                                    "cpeName": cpe["cpeName"],
+                                    "ref": ref["ref"],
+                                    "type": ref["type"]
+                                })
                 
             print("")
     
@@ -1345,14 +1282,11 @@ class CyberGraph:
         tx.run('''
             MERGE (vnd:Vendor { name:$vendorName } )
             MERGE (prd:Product { name:$productName, type:$productType } )
-            MERGE (cpe:CPE { cpeName:$cpeName })
             MERGE (vnd)-[:OWN]->(prd)
-            MERGE (prd)-[:HAS_CPE]->(cpe)
             ''',
             vendorName=elements["vendorName"],
             productName=elements["productName"],
-            productType=elements["productType"],
-            cpeName=elements["cpeName"])
+            productType=elements["productType"])
 
     @staticmethod
     def _create_version(tx, elements):
@@ -1466,8 +1400,7 @@ class CyberGraph:
                                 self.write_vendor_and_product({
                                     "vendorName":cpe_elements[3],
                                     "productName":cpe_elements[4],
-                                    "productType":("Application" if cpe_elements[2]=="a" else "Hardware" if cpe_elements[2]=="h" else "Operating Systems"),
-                                    "cpeName":cpe["criteria"]
+                                    "productType":("Application" if cpe_elements[2]=="a" else "Hardware" if cpe_elements[2]=="h" else "Operating Systems")
                                 })
 
                                 # TODO - At the moment the graph doesn't model the combination AND/OR of products
