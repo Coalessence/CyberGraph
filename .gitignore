@@ -10,3 +10,4 @@ cpe.json
 .remote.env
 __pycache__/
 node_modules/
+yarn.lock

@@ -1509,6 +1509,64 @@ class CyberGraph:
                 'name':json.get('name'),
                 'alias':item
             })
+    
+    def first_mitre_run(self, json):
+        mitre_attack_data = MitreAttackData("enterprise-attack.json")
+        techniques = []
+        tactics = mitre_attack_data.get_tactics(remove_revoked_deprecated=True)
+        tactics_new = []
+        for item in tactics:
+            for item2 in item.get('external_references'):
+                if item2.get('source_name') == "mitre-attack":
+                    tactics_new.append({
+                        'external_id':item2.get('external_id'),
+                        'name':item.get('name'),
+                        'description':item.get('description'),
+                        'link':item2.get('url'),
+                        "short-name":item.get('x_mitre_shortname'),
+                        'techniques':[]
+                    })
+        for tactic in tactics_new:
+            techniques = mitre_attack_data.get_techniques_by_tactic(tactics_new[0].get('short-name'), "enterprise-attack", remove_revoked_deprecated=True)
+            for tec in techniques:
+                for tec2 in tec.get('external_references'):
+                    if tec2.get('source_name') == "mitre-attack":
+                        tactic.get('techniques').append({
+                            'external_id':tec2.get('external_id'),
+                            'name':tec.get('name'),
+                            'description':tec.get('description'),
+                            'link':tec2.get('url'),
+                        })
+        for tac in tactics_new:
+            self.write_tactic({
+                'external_id':tac.get('external_id'),
+                'name':tac.get('name'),
+                'description':tac.get('description'),
+                'link':tac.get('link')
+            }) 
+            for tec in tac.get('techniques'):
+                self.write_mitre_technique({
+                    'tac_external_id':tac.get('external_id'),
+                    'external_id':tec.get('external_id'),
+                    'name':tec.get('name'),
+                    'description':tec.get('description'),
+                    'link':tec.get('link')
+            })
+        gg = mitre_attack_data.get_all_groups_using_all_techniques()
+        for id, groups in gg.items():
+            attack_id = mitre_attack_data.get_attack_id(id)
+            for gg in groups:
+                for ex in gg.get('object').get('external_references'):
+                    if ex.get('source_name') == "mitre-attack":
+                        cyberGraph.write_group_with_technique({
+                            "name":gg.get('object').get('name'),
+                            "description":gg.get('object').get('description'),
+                            "link":ex.get('url'),
+                            "tecId":attack_id,
+                    })
+            print(f"* {attack_id} - used by {len(groups)} {'group' if len(groups) == 1 else 'groups'}")
+        groups = mitre_attack_data.get_groups(remove_revoked_deprecated=True)
+        print("** Analysis ended**")
 
 if __name__ == "__main__":
     load_dotenv()
@@ -1523,61 +1581,8 @@ if __name__ == "__main__":
     #cyberGraph.handle_cwe("cwe.csv")
     #cyberGraph.handle_capec("capec.csv")
     #cyberGraph.handle_cve("dump.json")
-    mitre_attack_data = MitreAttackData("enterprise-attack.json")
-    techniques = []
-    tactics = mitre_attack_data.get_tactics(remove_revoked_deprecated=True)
-    tactics_new = []
-    for item in tactics:
-        for item2 in item.get('external_references'):
-            if item2.get('source_name') == "mitre-attack":
-                tactics_new.append({
-                    'external_id':item2.get('external_id'),
-                    'name':item.get('name'),
-                    'description':item.get('description'),
-                    'link':item2.get('url'),
-                    "short-name":item.get('x_mitre_shortname'),
-                    'techniques':[]
-                })
-    for tactic in tactics_new:
-        techniques = mitre_attack_data.get_techniques_by_tactic(tactics_new[0].get('short-name'), "enterprise-attack", remove_revoked_deprecated=True)
-        for tec in techniques:
-            for tec2 in tec.get('external_references'):
-                if tec2.get('source_name') == "mitre-attack":
-                    tactic.get('techniques').append({
-                        'external_id':tec2.get('external_id'),
-                        'name':tec.get('name'),
-                        'description':tec.get('description'),
-                        'link':tec2.get('url'),
-                    })
-    for tac in tactics_new:
-        cyberGraph.write_tactic({
-            'external_id':tac.get('external_id'),
-            'name':tac.get('name'),
-            'description':tac.get('description'),
-            'link':tac.get('link')
-        }) 
-        for tec in tac.get('techniques'):
-            cyberGraph.write_mitre_technique({
-                'tac_external_id':tac.get('external_id'),
-                'external_id':tec.get('external_id'),
-                'name':tec.get('name'),
-                'description':tec.get('description'),
-                'link':tec.get('link')
-        })
-    gg = mitre_attack_data.get_all_groups_using_all_techniques()
-    for id, groups in gg.items():
-        attack_id = mitre_attack_data.get_attack_id(id)
-        for gg in groups:
-            for ex in gg.get('object').get('external_references'):
-                if ex.get('source_name') == "mitre-attack":
-                    cyberGraph.write_group_with_technique({
-                        "name":gg.get('object').get('name'),
-                        "description":gg.get('object').get('description'),
-                        "link":ex.get('url'),
-                        "tecId":attack_id,
-                })
-        print(f"* {attack_id} - used by {len(groups)} {'group' if len(groups) == 1 else 'groups'}")
-    groups = mitre_attack_data.get_groups(remove_revoked_deprecated=True)  
-    print("** Analysis ended**")
+    cyberGraph.handle_sources("sources.json")
+    cyberGraph.handle_cpe("cpe.json")
+
     cyberGraph.close()
     
