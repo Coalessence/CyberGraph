@@ -8,3 +8,5 @@ epss.json
 sources.json
 cpe.json
 .remote.env
+__pycache__/
+node_modules/
