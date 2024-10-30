@@ -67,21 +67,12 @@ def create_tool_node_with_fallback(tools: list) -> dict:
         [RunnableLambda(handle_tool_error)], exception_key="error"
     )
 
-
-def _print_event(event: dict, _printed: set, max_length=1500):
-    current_state = event.get("dialog_state")
-    if current_state:
-        print("Currently in: ", current_state[-1])
-    message = event.get("messages")
-    if message:
-        if isinstance(message, list):
-            message = message[-1]
-        if message.id not in _printed:
-            msg_repr = message.pretty_repr(html=True)
-            if len(msg_repr) > max_length:
-                msg_repr = msg_repr[:max_length] + " ... (truncated)"
-            print(msg_repr)
-            _printed.add(message.id)
+def should_continue(state: State):
+    """Return the next node to execute."""
+    messages = state["messages"]
+    if len(messages) > 6:
+        return "summarize_conversation"
+    return END
     
 class Assistant:
     def __init__(self, runnable: Runnable):
@@ -129,6 +120,7 @@ def agent(state):
     """
     
     messages = state["messages"]
+    print("messages lenght ", messages.__len__())
     llm_with_tools = model.bind_tools(tools)
     
     #chain = prompt | llm_with_tools | StrOutputParser()
@@ -174,9 +166,3 @@ graph_builder.add_edge("tools", "agent")
 memory = MemorySaver()
 
 ChatGraph = graph_builder.compile(checkpointer=memory)
-
-
-try:
-    image=Image(ChatGraph.get_graph().draw_mermaid_png(output_file_path="graph.png"))
-except Exception:
-    pass

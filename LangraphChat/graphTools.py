@@ -244,7 +244,7 @@ def get_capec_mitigation(
     MATCH (c:CAPEC)-[:CAN_BE_MITIGATED_BY]->(m:Mitigation)
     """
     if capec and isinstance(capec, str):
-        candidate_capec = [el["candidate"] for el in get_exact_candidate(capec, "CAPEC", "id")]
+        candidate_capec = get_exact_candidate(capec, "CAPEC", "id")
         if not candidate_capec:
             return "The mentioned CAPEC was not found"
         filters.append(('c.id = "{candidate_capec}"').format(candidate_capec=candidate_capec))
