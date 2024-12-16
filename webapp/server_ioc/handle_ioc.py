@@ -486,7 +486,7 @@ class IoCGraph:
                 MATCH (hash_info)-[:HAS_EXTENSION]->(hash_ext:HASH_EXTENSION)
                 MATCH (hash_info)-[:HAS_MAGIC]->(hash_mag:HASH_MAGIC)
                 MATCH (hash_info)-[:HAS_HASH_SCORE]->(hash_sco:HASH_SCORE)
-                OPTIONAL MATCH (ta:THREAT_ACTOR)<-[:IS_USED_BY]-(tec:TECHNIQUE)<-[:HAS_MITRE_TECHNIQUE]-(tact:TACTIC)<-[:USES_TACTIC]-(hash_info)-[:USES_TECHNIQUE]->(tec)
+                OPTIONAL MATCH (ta:THREAT_ACTOR)<-[:IS_USED_BY]-(tec:AdversaryTechnique)<-[:HAS_MITRE_TECHNIQUE]-(tact:TACTIC)<-[:USES_TACTIC]-(hash_info)-[:USES_TECHNIQUE]->(tec)
                 WITH hash_info,hash_type,hash_ext,hash_file,hash_tags, hash_threat,hash_mag,hash_sco, tact, tec,ta,{id:ta.name, link:ta.link} AS tas
                 WITH hash_info,hash_type,hash_ext,hash_file,hash_tags, hash_threat,hash_mag,hash_sco,tact,tec,{id:tec.id, name: tec.name, link:tec.link, actors:COLLECT(tas)} AS tect
                 WITH hash_info,hash_type,hash_ext,hash_file,hash_tags, hash_threat,hash_mag,hash_sco,tact,{id:tact.id,name:tact.name,link:tact.link,techniques:COLLECT(tect)} AS tacts
@@ -637,7 +637,7 @@ class IoCGraph:
         tx.run("""
             MATCH (tactic:TACTIC { id:$tacId })
             MATCH (sha:HASH { hash:$hash })
-            MERGE (tec:TECHNIQUE { id:$id, name:$name, description:$description, link:$link})
+            MERGE (tec:AdversaryTechnique { id:$id, name:$name, description:$description, link:$link})
             MERGE (tactic)-[:HAS_MITRE_TECHNIQUE]->(tec)
             MERGE (sha)-[:USES_TECHNIQUE]->(tec)
             """,
@@ -756,7 +756,7 @@ class IoCGraph:
                 WHERE toLower(ta.name) CONTAINS toLower($name)
                 WITH ta AS ThreatActor
                 OPTIONAL MATCH (ThreatActor)-[:HAS_ALIAS]->(alias:THREAT_ACTOR_ALIAS)
-                OPTIONAL MATCH (tec:TECHNIQUE)-[:IS_USED_BY]->(ThreatActor)
+                OPTIONAL MATCH (tec:AdversaryTechnique)-[:IS_USED_BY]->(ThreatActor)
                 RETURN ThreatActor.name AS name, ThreatActor.link AS link, ThreatActor.description AS description, collect(distinct(alias.name)) AS aliases, collect(distinct({id:tec.id, link:tec.link, name:tec.name})) AS techniques
                 """,
                 name=value
@@ -776,7 +776,7 @@ class IoCGraph:
                     MATCH (alias:THREAT_ACTOR_ALIAS)
                     WHERE toLower(alias.name) CONTAINS toLower($name)
                     MATCH (ta:THREAT_ACTOR)-[:HAS_ALIAS]->(alias)
-                    OPTIONAL MATCH (tec:TECHNIQUE)-[:IS_USED_BY]->(ta)
+                    OPTIONAL MATCH (tec:AdversaryTechnique)-[:IS_USED_BY]->(ta)
                     MATCH (ta)-[:HAS_ALIAS]->(alias_2:THREAT_ACTOR_ALIAS)
                     RETURN ta.name AS name, ta.link AS link, ta.description AS description, collect(distinct(alias_2.name)) AS aliases, collect(distinct({id:tec.id, link:tec.link, name:tec.name})) AS techniques
                     """,

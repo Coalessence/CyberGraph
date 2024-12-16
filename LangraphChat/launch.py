@@ -1,13 +1,19 @@
 from langgraphBase import ChatGraph
 from langchain_core.messages import HumanMessage
+from langchain_ollama import ChatOllama
+
+model=ChatOllama(model="llama3.1:8b",temperature=0)
+
+chat=ChatGraph(model=model).create_graph()
 
 
 def print_update(update):
     for k, v in update.items():
-        for m in v["messages"]:
-            m.pretty_print()
-        if "summary" in v:
-            print(v["summary"])   
+        if k in ["response_agent"]:
+            for m in v["messages"]:
+                m.pretty_print()
+            if "summary" in v:
+                print(v["summary"])   
 
 def continuous_react_chat(config):
     # Initialize conversation history
@@ -33,11 +39,22 @@ def continuous_react_chat(config):
         }
         
         input_message = HumanMessage(content=user_input)
-        input_message.pretty_print()
-        for event in ChatGraph.stream({"messages": [input_message]}, config, stream_mode="updates"):
+        for event in chat.stream({"messages": [input_message]}, config, stream_mode="updates"):
             print_update(event)
+
+def debug_chat(config):
+    # Initialize conversation history
+    
+    user_input = "What are the attack patterns on php?"
+    
+    input_message = HumanMessage(content=user_input)
+    for chunk in chat.stream({"messages": input_message},config, stream_mode="values"):
+        final_result = chunk
+        print("new event")
+        print(final_result) 
 
 if __name__ == "__main__":
     
     config = {"configurable": {"thread_id": "1"}}
     continuous_react_chat(config)
+    #debug_chat(config)

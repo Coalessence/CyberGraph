@@ -1379,7 +1379,7 @@ class CyberGraph:
                 if "references" in cve["cve"]:
                     for ref in cve["cve"]["references"]:
                         if "tags" in ref:
-                            additionalLabels = ":".join(map(lambda tag: tag.title(),ref["tags"])).replace(" ","").replace("/","").replace("\\","").replace("|","").replace("-","")
+                            additionalLabels = ":Ref".join(map(lambda tag: tag.title(),ref["tags"])).replace(" ","").replace("/","").replace("\\","").replace("|","").replace("-","")
                             additionalLabels = additionalLabels if not additionalLabels else ":" + additionalLabels
                         else:
                             additionalLabels = ""
@@ -1435,7 +1435,7 @@ class CyberGraph:
     def _create_mitre_technique(tx, elements):
         tx.run("""
             MATCH (tactic:TACTIC { id:$tacId })
-            MERGE (tec:TECHNIQUE { id:$id, name:$name, description:$description, link:$link})
+            MERGE (tec:AdversaryTechnique { id:$id, name:$name, description:$description, link:$link})
             MERGE (tactic)-[:HAS_MITRE_TECHNIQUE]->(tec)
             """, 
             tacId=elements["tac_external_id"],
@@ -1477,7 +1477,7 @@ class CyberGraph:
     @staticmethod
     def _create_group_with_technique(tx, elements):
         tx.run("""
-                MATCH (x:TECHNIQUE { id:$id })
+                MATCH (x:AdversaryTechnique { id:$id })
                 MERGE (y:THREAT_ACTOR { name:$name, description:$description, link:$link})
                 MERGE (x)-[:IS_USED_BY]->(y)
                 """,
@@ -1577,12 +1577,13 @@ if __name__ == "__main__":
 
     cyberGraph = CyberGraph(neo4j_uri, neo4j_username, neo4j_password)
 
-    #cyberGraph.handle_cna("cna.json")
-    #cyberGraph.handle_cwe("cwe.csv")
-    #cyberGraph.handle_capec("capec.csv")
-    #cyberGraph.handle_cve("dump.json")
-    cyberGraph.handle_sources("sources.json")
-    cyberGraph.handle_cpe("cpe.json")
+    cyberGraph.handle_cna("cna.json")
+    cyberGraph.handle_cwe("cwe.csv")
+    cyberGraph.handle_capec("capec.csv")
+    cyberGraph.handle_cve("dump.json")
+    cyberGraph.handle_epss("epss.csv")
+    #cyberGraph.handle_sources("sources.json")
+    #cyberGraph.handle_cpe("cpe.json")
 
     cyberGraph.close()
     

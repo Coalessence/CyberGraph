@@ -21,6 +21,7 @@ from selenium.webdriver.common.by import By
 class CVE:
     def __init__(self, year=None):
         load_dotenv()
+        self._api_key = os.getenv('NIST_API_KEY')
         self._retry_sleep = 5    # In seconds
         if(year is not None):
             self._year = year
@@ -660,11 +661,11 @@ if __name__ == "__main__":
     cpe = CPE()
     sources= SOURCES()
     
-    epss.create_epss_dump("epss")
+    #epss.create_epss_dump("epss")
     #cves.create_cves_dump()
-    cwes.create_cwes_dump()
-    capec.create_capec_dump()
-    cna.create_cna_dump()
-    cpe.create_cpes_dump("cpe")
-    sources.create_sources_dump("sources")
+    #cwes.create_cwes_dump()
+    #capec.create_capec_dump()
+    #cna.create_cna_dump()
+    #cpe.create_cpes_dump("cpe")
+    #sources.create_sources_dump("sources")
     cves.get_cves_year("dump",2022)

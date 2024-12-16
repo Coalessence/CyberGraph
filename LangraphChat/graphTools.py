@@ -1,10 +1,10 @@
 import os
-from typing import Any, Dict, List, Optional, Tuple, Type
+from typing import Any, Dict, List, Optional, Tuple, Type, Annotated
 from dotenv import load_dotenv
-from langchain_community.graphs import Neo4jGraph
-from langchain_community.vectorstores.neo4j_vector import remove_lucene_chars
-from langchain_core.tools import tool
-from langchain_core.pydantic_v1 import Field
+from langchain_neo4j import Neo4jGraph
+from langchain_neo4j.vectorstores.neo4j_vector import remove_lucene_chars
+from langchain_core.tools import tool, StructuredTool
+from pydantic import Field, BaseModel
 
 load_dotenv(".env")
 
@@ -91,9 +91,7 @@ def get_exact_candidate(input: str, type: str, key: str) -> Optional[str]:
 
 @tool
 def get_cve_product(
-    product: Optional[str] = Field(
-        description="software product mentioned in the question. Return None if no mentioned."
-    )
+    product: Annotated[str, "Product mentioned in the question. Return None if no mentioned."]
 ):
     """Useful for when you need to find all the vulnerabilities of a software product."""
     params = {}
@@ -112,25 +110,23 @@ def get_cve_product(
         vulnerabilty_product_base_query += " WHERE "
         vulnerabilty_product_base_query += " AND ".join(filters)
     vulnerabilty_product_base_query += """
-    RETURN p.name AS product, c.id AS vulnerability, a.versionStartIncluding as version, count(*) AS count
+    RETURN p.name AS product, c.id AS answer, a.versionStartIncluding as version, count(*) AS count
     ORDER BY count DESC
     """
     print(f"Using parameters: {params}")
     data = graph.query(vulnerabilty_product_base_query, params=params)
+    print(data)
     return data
-     
+
 @tool
-def get_cwe_capec(
-    cve: Optional[str] = Field(
-        description="CVE ID mentioned in the question. Return None if no mentioned."
-    )
+def get_cve_information(
+    cve: Annotated[str, "CVE ID mentioned in the question. Return None if no mentioned."]
 ):
-    """Useful for when you need to find the CWE id and CAPEC id of a CVE. Useful when you need to find the weakness id and attack patter id froma vulnerability id"""
+    """Useful to find information about a CVE or vulnerability, including the description, published date, and last modified date."""
     params = {}
     filters = []
-    cwe_capec_base_query = """
-    MATCH (c:CVE)-[:HAS_WEAKNESS]->(w:CWE)
-    MATCH (w)-[:HAS_RELATED_ATTACK_PATTERN]->(a:CAPEC)
+    cve_information_base_query = """
+    MATCH (c:CVE)
     """
     if cve and isinstance(cve, str):
         candidate_cve = get_exact_candidate(cve, "CVE", "id")
@@ -139,19 +135,68 @@ def get_cwe_capec(
         filters.append(('c.id = "{candidate_cve}"').format(candidate_cve=candidate_cve))
 
     if filters:
-        cwe_capec_base_query += " WHERE "
-        cwe_capec_base_query += " AND ".join(filters)
-    cwe_capec_base_query += """
-    RETURN c.id AS cve, w.id AS cwe, a.id AS capec
+        cve_information_base_query += " WHERE "
+        cve_information_base_query += " AND ".join(filters)
+    cve_information_base_query += """
+    RETURN c.id AS cve, c.description AS description, c.publishedDate AS published_date, c.lastModifiedDate AS last_modified_date
     """
-    data = graph.query(cwe_capec_base_query, params=params)
+    print(f"Using parameters: {params}")
+    data = graph.query(cve_information_base_query, params=params)
+    return data
+
+@tool
+def get_cve_cna(
+    cve: Annotated[str, "CVE ID mentioned in the question. Return None if no mentioned."]
+):
+    """Useful for when you need to find the CNA of a CVE."""
+    params = {}
+    filters = []
+    cve_cna_base_query = """
+    MATCH (c:CVE)<-[:ASSIGNED]-(n:CNA)
+    """
+    if cve and isinstance(cve, str):
+        candidate_cve = get_exact_candidate(cve, "CVE", "id")
+        if not candidate_cve:
+            return "The mentioned CVE was not found"
+        filters.append(('c.id = "{candidate_cve}"').format(candidate_cve=candidate_cve))
+
+    if filters:
+        cve_cna_base_query += " WHERE "
+        cve_cna_base_query += " AND ".join(filters)
+    cve_cna_base_query += """
+    RETURN c.id AS cve, n.link AS answer
+    """
+    data = graph.query(cve_cna_base_query, params=params)
+    return data
+
+@tool
+def get_cve_cwe(
+    cve: Annotated[str, "CVE ID mentioned in the question. Return None if no mentioned."]
+):
+    """Useful for when you need to find the CWE id and CAPEC id of a CVE. Useful when you need to find the weakness id and attack patter id froma vulnerability id"""
+    params = {}
+    filters = []
+    cve_cwe_base_query = """
+    MATCH (c:CVE)-[:HAS_WEAKNESS]->(w:CWE)
+    """
+    if cve and isinstance(cve, str):
+        candidate_cve = get_exact_candidate(cve, "CVE", "id")
+        if not candidate_cve:
+            return "The mentioned CVE was not found"
+        filters.append(('c.id = "{candidate_cve}"').format(candidate_cve=candidate_cve))
+
+    if filters:
+        cve_cwe_base_query += " WHERE "
+        cve_cwe_base_query += " AND ".join(filters)
+    cve_cwe_base_query += """
+    RETURN c.id AS cve, w.id AS answer
+    """
+    data = graph.query(cve_cwe_base_query, params=params)
     return data
 
 @tool
 def get_cve_description(
-    cve: Optional[str] = Field(
-        description="CVE ID mentioned in the question. Return None if no mentioned."
-    )
+    cve: Annotated[str, "CVE ID mentioned in the question. Return None if no mentioned."]
 ):
     """Useful for when you need to find the description of a CVE."""
     params = {}
@@ -176,10 +221,34 @@ def get_cve_description(
     return data
 
 @tool
+def get_cwe_capec(
+    cwe: Annotated[int, "CWE ID mentioned in the question. Return None if no mentioned."]
+):
+    """Useful for when you need to find the CAPEC id from a CWE. Useful when you need to find the attack patter id from a weakness id"""
+    params = {}
+    filters = []
+    cwe_capec_base_query = """
+    MATCH (c:CWE)-[:HAS_RELATED_ATTACK_PATTERN]->(a:CAPEC)
+    """
+    cwe=str(cwe)
+    if cwe and isinstance(cwe, str):
+        candidate_cwe = get_exact_candidate(cwe, "CWE", "id")
+        if not candidate_cwe:
+            return "The mentioned CWE was not found"
+        filters.append(('c.id = "{candidate_cwe}"').format(candidate_cwe=candidate_cwe))
+
+    if filters:
+        cwe_capec_base_query += " WHERE "
+        cwe_capec_base_query += " AND ".join(filters)
+    cwe_capec_base_query += """
+    RETURN c.id AS cwe, a.id AS answer
+    """
+    data = graph.query(cwe_capec_base_query, params=params)
+    return data
+
+@tool
 def get_cwe_description(
-    cwe: Optional[str] = Field(
-        description="CWE ID mentioned in the question. Return None if no mentioned."
-    )
+    cwe: Annotated[int, "CWE ID mentioned in the question. Return None if no mentioned."]
 ):
     """Useful for when you need to find the description of a CWE."""
     params = {}
@@ -187,6 +256,7 @@ def get_cwe_description(
     cwe_description_base_query = """
     MATCH (c:CWE)
     """
+    cwe=str(cwe)
     if cwe and isinstance(cwe, str):
         candidate_cwe = get_exact_candidate(cwe, "CWE", "id")
         if not candidate_cwe:
@@ -205,9 +275,7 @@ def get_cwe_description(
 
 @tool
 def get_capec_description(
-    capec: Optional[str] = Field(
-        description="CAPEC ID mentioned in the question. Return None if no mentioned."
-    )
+    capec: Annotated[int, "CAPEC ID mentioned in the question. Return None if no mentioned."]
 ):
     """Useful for when you need to find the description of a CAPEC, useful to find the attack pattern for a software vulnerability."""
     params = {}
@@ -215,6 +283,7 @@ def get_capec_description(
     capec_description_base_query = """
     MATCH (c:CAPEC)
     """
+    capec=str(capec)
     if capec and isinstance(capec, str):
         candidate_capec = get_exact_candidate(capec, "CAPEC", "id")
         if not candidate_capec:
@@ -233,9 +302,7 @@ def get_capec_description(
 
 @tool
 def get_capec_mitigation(
-    capec: Optional[str] = Field(
-        description="CAPEC ID mentioned in the question. Return None if no mentioned."
-    )
+    capec: Annotated[int, "CAPEC ID mentioned in the question. Return None if no mentioned."]
 ):
     """Useful for when you need to find the mitigation of a CAPEC, useful to find the mitigation for a software vulnerability."""
     params = {}
@@ -243,6 +310,7 @@ def get_capec_mitigation(
     capec_mitigation_base_query = """
     MATCH (c:CAPEC)-[:CAN_BE_MITIGATED_BY]->(m:Mitigation)
     """
+    capec=str(capec)
     if capec and isinstance(capec, str):
         candidate_capec = get_exact_candidate(capec, "CAPEC", "id")
         if not candidate_capec:
@@ -259,5 +327,160 @@ def get_capec_mitigation(
     data = graph.query(capec_mitigation_base_query, params=params)
     return data
 
-tools = [get_cve_product, get_cwe_capec, get_cve_description, get_cwe_description, get_capec_description, get_capec_mitigation]
+@tool
+def get_capec_attack_pattern(
+    capec: Annotated[int, "CAPEC ID mentioned in the question. Return None if no mentioned."]
+):
+    """Useful for when you need to find the attack pattern information given a CAPEC."""
+    params = {}
+    filters = []
+    capec_attack_pattern_base_query = """
+    MATCH (c:CAPEC)
+    """
+    capec=str(capec)
+    if capec and isinstance(capec, str):
+        candidate_capec = get_exact_candidate(capec, "CAPEC", "id")
+        if not candidate_capec:
+            return "The mentioned CAPEC was not found"
+        filters.append(('c.id = "{candidate_capec}"').format(candidate_capec=candidate_capec))
+
+    if filters:
+        capec_attack_pattern_base_query += " WHERE "
+        capec_attack_pattern_base_query += " AND ".join(filters)
+    capec_attack_pattern_base_query += """
+    RETURN c.id AS capec, c.name AS attack_pattern, c.description AS description
+    """
+    data = graph.query(capec_attack_pattern_base_query, params=params)
+    return data
+
+@tool
+def get_threatActors(
+    threat_actor: Annotated[str, "Threat Actor mentioned in the question. Return None if no mentioned."]
+):
+    """Useful for when you need to find the threat actor of a software vulnerability."""
+    params = {}
+    filters = []
+    threat_actor_base_query = """
+    MATCH (t:ThreatActor)
+    """
+    if threat_actor and isinstance(threat_actor, str):
+        candidate_threat_actor = get_exact_candidate(threat_actor, "ThreatActor", "name")
+        if not candidate_threat_actor:
+            return "The mentioned threat actor was not found"
+        filters.append(('t.name = "{candidate_threat_actor}"').format(candidate_threat_actor=candidate_threat_actor))
+
+    if filters:
+        threat_actor_base_query += " WHERE "
+        threat_actor_base_query += " AND ".join(filters)
+    threat_actor_base_query += """
+    RETURN t.name AS threat_actor, t.description AS description
+    """
+    print(f"Using parameters: {params}")
+    data = graph.query(threat_actor_base_query, params=params)
+    return data
+
+
+@tool
+def get_most_recent_vulnerability(
+    product: Annotated[str, "Product mentioned in the question. Return None if no mentioned."]
+):
+    """Useful for when you need to find the most recent CVEs of a software product."""
+    most_recent_cve_query = """
+    MATCH (c:CVE)
+    RETURN c.id AS cve, c.publishedDate AS published_date, c.lastModifiedDate AS last_modified_date
+    ORDER BY c.lastModifiedDate DESC
+    LIMIT 5
+    """
+    params = {}
+    filters = []
+    most_recent_cve_query = """
+    MATCH (p:Product)<-[a:AFFECTS]-(c:CVE)
+    """
+    if product and isinstance(product, str):
+        candidate_products = [el["candidate"] for el in get_candidates(product, "product")]
+        if not candidate_products:
+            return "The mentioned product was not found"
+        filters.append("p.name IN $products")
+        params["products"] = candidate_products
+
+    if filters:
+        most_recent_cve_query += " WHERE "
+        most_recent_cve_query += " AND ".join(filters)
+    most_recent_cve_query += """
+    RETURN p.name AS product, c.id AS vulnerability, c.publishedDate AS published_date, c.lastModifiedDate AS last_modified_date
+    ORDER BY publishedDate DESC
+    """
+    print(f"Using parameters: {params}")
+    data = graph.query( most_recent_cve_query, params=params)
+    return data
+
+graph_schema_txt=graph.get_schema
+
+def parse_graph_schema(schema_text: str):
+    """
+    Parse graph schema text to extract node labels and relationships
+    
+    Args:
+        schema_text (str): Text containing graph schema
+    
+    Returns:
+        dict: A dictionary with node types and their relationships
+    """
+    graph_schema = {}
+    
+    # Find relationship lines
+    for line in schema_text.split('\n'):
+        if '(' in line and '->' in line:
+            # Extract source and target node types
+            source_node = line.split('(')[1].split(')')[0].strip('(:)')
+            target_node = line.split('(')[2].split(')')[0].strip('(:)')
+            relationship = line.split('[:')[1].split(']')[0]
+            
+            source_node = source_node.lower()
+            target_node = target_node.lower()
+            #relationship = relationship.lower()
+            
+            # Initialize node entries if not exists
+            if source_node not in graph_schema:
+                graph_schema[source_node] = set()
+            
+            if target_node not in graph_schema:
+                graph_schema[target_node] = set()
+            
+            # Add relationship
+            #graph_schema[source_node].add((relationship, target_node))
+            #graph_schema[target_node].add((relationship, source_node))
+            graph_schema[source_node].add(target_node)
+            graph_schema[target_node].add(source_node)
+    
+    return graph_schema
+
+def get_entities_from_schema(graph_schema):
+    """
+    Extract entity types from graph schema
+    
+    Args:
+        graph_schema (dict): A dictionary with node types and their relationships
+    
+    Returns:
+        list: A list of entity types
+    """
+    entities = set()
+    
+    for node in graph_schema.keys():        
+        entities.add(node)
+    
+    return list(entities)
+
+graph_schema = parse_graph_schema(graph_schema_txt)
+
+categories = get_entities_from_schema(graph_schema)
+
+tools = {
+    "cve": [get_cve_product, get_cve_cwe, get_cve_description, get_cve_cna, get_cve_information],
+    "cwe": [get_cwe_description, get_cwe_capec],
+    "capec": [get_capec_description, get_capec_mitigation, get_capec_attack_pattern],
+    "cna": [],
+}
+
 generate_indexes()
