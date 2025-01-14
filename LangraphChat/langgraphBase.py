@@ -237,10 +237,11 @@ class ChatGraph():
             2. Do not use internal knowledge or add additional information
             3. Use tools to find the requested output information
             4. Only find the requested output information
-            5. Make only one tool per input data
+            5. Make only one tool call per input data
             6. Do not make duplicate tool calls
             7. Use only the input data as tool call parameters
             8. Do not use history of other tool calls
+            9. Make one tool call for each input data
             
             Here is the input data: {input}
             The input data belongs to the following category: {category}
@@ -320,6 +321,8 @@ class ChatGraph():
         for message in messages:
             if isinstance(message, ToolMessage):
                 if stage=="move_to_data" or stage=="first_step":
+                    
+                    
                     message.content=json.loads(message.content)
                     for answer in message.content:
                         current_data.append(answer["answer"])
@@ -575,7 +578,7 @@ class ChatGraph():
             return {"tool_messages": [response]} 
 
         except Exception as e:
-            print("errore per qulche cazzo di motivo ", e)
+            print("errore per qualche cazzo di motivo ", e)
             state['retry_count'] += 1
             if state['retry_count'] <= self.max_retry_attempts:
                 return {"conversation_stage": "retry"}

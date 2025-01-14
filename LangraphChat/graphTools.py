@@ -119,10 +119,37 @@ def get_cve_product(
     return data
 
 @tool
+def get_multiple_cve_information(
+    cve: Annotated[List[str], "List of CVE IDs mentioned in the question. Return None if no mentioned."]
+):
+    """Useful to find information about multiple CVEs or vulnerabilities, including the description, published date, and last modified date."""
+    params = {}
+    filters = []
+    cve_information_base_query = """
+    MATCH (c:CVE)
+    """
+    if cve and isinstance(cve, list):
+        candidate_cves = [get_exact_candidate(el, "CVE", "id") for el in cve]
+        if not candidate_cves:
+            return "The mentioned CVEs were not found"
+        filters.append('c.id IN $candidate_cves')
+        params["candidate_cves"] = candidate_cves
+
+    if filters:
+        cve_information_base_query += " WHERE "
+        cve_information_base_query += " OR ".join(filters)
+    cve_information_base_query += """
+    RETURN c.id AS cve, c.description AS description, c.publishedDate AS published_date, c.lastModifiedDate AS last_modified_date
+    """
+    print(f"Using parameters: {params}")
+    data = graph.query(cve_information_base_query, params=params)
+    return data
+
+@tool
 def get_cve_information(
     cve: Annotated[str, "CVE ID mentioned in the question. Return None if no mentioned."]
 ):
-    """Useful to find information about a CVE or vulnerability, including the description, published date, and last modified date."""
+    """Useful to find information about a single CVE or vulnerability, including the description, published date, and last modified date."""
     params = {}
     filters = []
     cve_information_base_query = """
@@ -136,7 +163,7 @@ def get_cve_information(
 
     if filters:
         cve_information_base_query += " WHERE "
-        cve_information_base_query += " AND ".join(filters)
+        cve_information_base_query += " OR ".join(filters)
     cve_information_base_query += """
     RETURN c.id AS cve, c.description AS description, c.publishedDate AS published_date, c.lastModifiedDate AS last_modified_date
     """
@@ -219,6 +246,33 @@ def get_cve_description(
     print(f"Using parameters: {params}")
     data = graph.query(cve_description_base_query, params=params)
     return data
+
+@tool
+def get_cwe_cve(
+    cwe: Annotated[int, "CWE ID mentioned in the question. Return None if no mentioned."]
+):
+    """Useful for when you need to find the CVE id from a CWE. Useful when you need to find the vulnerability id from a weakness id"""
+    params = {}
+    filters = []
+    cwe_cve_base_query = """
+    MATCH (c:CVE)-[:HAS_WEAKNESS]->(w:CWE)
+    """
+    cwe=str(cwe)
+    if cwe and isinstance(cwe, str):
+        candidate_cwe = get_exact_candidate(cwe, "CWE", "id")
+        if not candidate_cwe:
+            return "The mentioned CWE was not found"
+        filters.append(('w.id = "{candidate_cwe}"').format(candidate_cwe=candidate_cwe))
+
+    if filters:
+        cwe_cve_base_query += " WHERE "
+        cwe_cve_base_query += " AND ".join(filters)
+    cwe_cve_base_query += """
+    RETURN w.id AS cwe, c.id AS answer
+    """
+    data = graph.query(cwe_cve_base_query, params=params)
+    return data
+
 
 @tool
 def get_cwe_capec(
@@ -379,6 +433,32 @@ def get_threatActors(
     data = graph.query(threat_actor_base_query, params=params)
     return data
 
+@tool
+def get_cna_link(
+    link: Annotated[str, "CNA link mentioned in the question. Return None if no mentioned."]
+):
+    """Useful for when you need to find a specific CNA having the link."""
+    params = {}
+    filters = []
+    cna_link_base_query = """
+    MATCH (n:CNA)
+    """
+    if link and isinstance(link, str):
+        candidate_cna = get_exact_candidate(link, "CNA", "link")
+        if not candidate_cna:
+            return "The mentioned CNA was not found"
+        filters.append(('n.link = "{candidate_cna}"').format(candidate_cna=candidate_cna))
+
+    if filters:
+        cna_link_base_query += " WHERE "
+        cna_link_base_query += " AND ".join(filters)
+    cna_link_base_query += """
+    RETURN n.link AS cna
+    """
+    print(f"Using parameters: {params}")
+    data = graph.query(cna_link_base_query, params=params)
+    return data
+
 
 @tool
 def get_most_recent_vulnerability(
@@ -477,10 +557,14 @@ graph_schema = parse_graph_schema(graph_schema_txt)
 categories = get_entities_from_schema(graph_schema)
 
 tools = {
-    "cve": [get_cve_product, get_cve_cwe, get_cve_description, get_cve_cna, get_cve_information],
-    "cwe": [get_cwe_description, get_cwe_capec],
+    "cve": [get_cve_product, get_cve_cwe, get_cve_description, get_cve_cna, get_cve_information, get_multiple_cve_information],
+    "cwe": [get_cwe_description, get_cwe_capec, get_cwe_cve],
     "capec": [get_capec_description, get_capec_mitigation, get_capec_attack_pattern],
-    "cna": [],
+    "cna": [get_cna_link],
 }
 
 generate_indexes()
+
+if __name__ == "__main__":
+    query= ['CVE-2001-0771', 'CVE-2001-1009', 'CVE-2000-0844', 'CVE-2000-0219', 'CVE-1999-0839', 'CVE-1999-0899', 'CVE-1999-0777', 'CVE-1999-0909', 'CVE-1999-1011', 'CVE-1999-0728', 'CVE-1999-0344', 'CVE-1999-0227', 'CVE-1999-0496', 'CVE-1999-1383']
+    print(get_multiple_cve_information({'cve':query}))

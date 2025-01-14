@@ -4,7 +4,7 @@ from langchain_ollama import ChatOllama
 
 model=ChatOllama(model="llama3.1:8b",temperature=0)
 
-chat=ChatGraph(model=model).create_graph()
+chat=ChatGraph(model=model, debug=True).create_graph()
 
 
 def print_update(update):
@@ -45,6 +45,8 @@ def continuous_react_chat(config):
 def debug_chat(config):
     # Initialize conversation history
     
+    #cwe 264
+    #CVE-1999-1383
     user_input = "What are the attack patterns on php?"
     
     input_message = HumanMessage(content=user_input)
