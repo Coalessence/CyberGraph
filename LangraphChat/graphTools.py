@@ -110,8 +110,8 @@ def get_cve_product(
         vulnerabilty_product_base_query += " WHERE "
         vulnerabilty_product_base_query += " AND ".join(filters)
     vulnerabilty_product_base_query += """
-    RETURN p.name AS product, c.id AS answer, a.versionStartIncluding as version, count(*) AS count
-    ORDER BY count DESC
+    RETURN p.name AS product, c.id AS answer, a.versionStartIncluding as version, count(*) AS number
+    ORDER BY number DESC
     """
     print(f"Using parameters: {params}")
     data = graph.query(vulnerabilty_product_base_query, params=params)
@@ -149,7 +149,7 @@ def get_multiple_cve_information(
 def get_cve_information(
     cve: Annotated[str, "CVE ID mentioned in the question. Return None if no mentioned."]
 ):
-    """Useful to find information about a single CVE or vulnerability, including the description, published date, and last modified date."""
+    """Useful to find information about a CVE or vulnerability, including the description, published date, and last modified date."""
     params = {}
     filters = []
     cve_information_base_query = """
@@ -321,7 +321,7 @@ def get_cwe_description(
         cwe_description_base_query += " WHERE "
         cwe_description_base_query += " AND ".join(filters)
     cwe_description_base_query += """
-    RETURN c.id AS cwe, c.extendedDescription AS description
+    RETURN c.id AS cwe, c.description AS description, c.extendedDescription AS extended_description
     """
     print(f"Using parameters: {params}")
     data = graph.query(cwe_description_base_query, params=params)

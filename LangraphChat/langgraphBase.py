@@ -227,10 +227,30 @@ class ChatGraph():
             ]
         }
     
-    def movePrompt(self):
+    def retrievePrompt(self):
         
         template = PromptTemplate.from_template(template="""
             Task: You are an intelligent assistant with access to various tools. Your task is to use input data to find the requested output information.
+            
+            Instructions:
+            1. Use only the given input data
+            2. Do not use your knowledge or add additional information
+            3. Use tools to find the requested output information
+            4. Only find the requested output information
+            5. make only one tool call per input data
+
+            Your input is {category} with value: {input}
+            Your task is to retrieve the related output: {output}
+            
+            \n""")
+        
+        return template
+    
+    def movePrompt(self):
+        
+        template = PromptTemplate.from_template(template="""
+            Task: You are an intelligent assistant with access to various tools. Your task is 
+            to use input data to find the requested output information.
             Instructions:
             
             1. Use only the given input data
@@ -243,9 +263,9 @@ class ChatGraph():
             8. Do not use history of other tool calls
             9. Make one tool call for each input data
             
-            Here is the input data: {input}
+            Here is the input question: {input}
             The input data belongs to the following category: {category}
-            Find the requested output information: {output}
+            Find the requested output information of category: {output}
             \n""")
         
         return template
@@ -255,12 +275,14 @@ class ChatGraph():
         prompt = ChatPromptTemplate.from_messages([
         ("system", """You are a helpful assistant tasked with converting raw data and a question 
         into a clear, conversational, and easy-to-understand answer. 
-        Follow these guidelines:
-        - Use natural, friendly language
-        - Explain the information in a way that's easy to comprehend
-        - Provide context when necessary
-        - If the data is complex, break it down into simpler terms
-        - Ensure the answer directly addresses the original question"""),
+        Instructions:
+        1. Use natural, friendly language
+        2. Explain the information in a way that's easy to comprehend
+        3. Provide context when necessary
+        4. If the data is complex, break it down into simpler terms
+        5. Ensure the answer directly addresses the original question
+        6. Do not add any preambles or unnecessary information to the answer
+        """),
         ("human", """Given the following question:
         {question}
         And this response data:
@@ -321,8 +343,6 @@ class ChatGraph():
         for message in messages:
             if isinstance(message, ToolMessage):
                 if stage=="move_to_data" or stage=="first_step":
-                    
-                    
                     message.content=json.loads(message.content)
                     for answer in message.content:
                         current_data.append(answer["answer"])
@@ -480,7 +500,7 @@ class ChatGraph():
             return {"tool_messages": [response]} 
 
         except Exception as e:
-            print("errore per qulche cazzo di motivo ", e)
+            print("Error ", e)
             state['retry_count'] += 1
             if state['retry_count'] <= self.max_retry_attempts:
                 return {"conversation_stage": "retry"}
@@ -529,7 +549,7 @@ class ChatGraph():
             return {"tool_messages": [response]} 
 
         except Exception as e:
-            print("errore per qulche cazzo di motivo ", e)
+            print("Error: ", e)
             state['retry_count'] += 1
             if state['retry_count'] <= self.max_retry_attempts:
                 return {"conversation_stage": "retry"}
@@ -578,7 +598,7 @@ class ChatGraph():
             return {"tool_messages": [response]} 
 
         except Exception as e:
-            print("errore per qualche cazzo di motivo ", e)
+            print("Error: ", e)
             state['retry_count'] += 1
             if state['retry_count'] <= self.max_retry_attempts:
                 return {"conversation_stage": "retry"}
@@ -627,7 +647,7 @@ class ChatGraph():
             return {"tool_messages": [response]} 
 
         except Exception as e:
-            print("errore per qulche cazzo di motivo ", e)
+            print("Error: ", e)
             state['retry_count'] += 1
             if state['retry_count'] <= self.max_retry_attempts:
                 return {"conversation_stage": "retry"}

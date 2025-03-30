@@ -1,7 +1,11 @@
 from langgraphBase import ChatGraph
 from langchain_core.messages import HumanMessage
 from langchain_ollama import ChatOllama
+from MCV.modello import ChatModel
+from MCV.gui import ChatView
+from MCV.controller import ChatController
 
+#change this to the model you want to use
 model=ChatOllama(model="llama3.1:8b",temperature=0)
 
 chat=ChatGraph(model=model, debug=True).create_graph()
@@ -11,7 +15,7 @@ def print_update(update):
     for k, v in update.items():
         if k in ["response_agent"]:
             for m in v["messages"]:
-                m.pretty_print()
+                return m.pretty_print()
             if "summary" in v:
                 print(v["summary"])   
 
@@ -47,16 +51,25 @@ def debug_chat(config):
     
     #cwe 264
     #CVE-1999-1383
-    user_input = "What are the attack patterns on php?"
+    #irix
+    user_input = "What are the weakness of irix?"
     
     input_message = HumanMessage(content=user_input)
     for chunk in chat.stream({"messages": input_message},config, stream_mode="values"):
         final_result = chunk
         print("new event")
         print(final_result) 
-
+            
+def graphicalChat(config):
+    m = ChatModel(model=model, chat_graph=chat)
+    v = ChatView()
+    c = ChatController(m, v)
+    v.mainloop()
+    
+    
 if __name__ == "__main__":
     
     config = {"configurable": {"thread_id": "1"}}
-    continuous_react_chat(config)
+    graphicalChat(config)
+    #continuous_react_chat(config)
     #debug_chat(config)

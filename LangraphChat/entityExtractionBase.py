@@ -8,6 +8,8 @@ from graphTools import categories, graph_schema
 from langgraph.types import Command, interrupt
 from langgraph.checkpoint.memory import MemorySaver
 from operator import add
+from IPython.display import Image, display
+from langchain_core.runnables.graph import MermaidDrawMethod
 
 # Define the state for our graph
 class EntityState(TypedDict):
@@ -54,6 +56,10 @@ class EntityExtractionGraph():
 
         try:
             result = chain.invoke({"question": state['question']})
+            
+            print("Extracted Entities:")
+            print(f"Known Entity: {result.get('known_entity')}")
+            print(f"Desired Entity: {result.get('desired_entity')}")
             
             return {
                 "start_data": result.get('known_entity'),
@@ -114,26 +120,26 @@ class EntityExtractionGraph():
         
         category_list = "\n".join([f"- {cat}" for cat in categories if cat not in state.get('rejected_start')])
         
-        categorization_prompt = PromptTemplate.from_template(template=f"""Task: Categorize the given entity into one of the predefined categories.
+        categorization_prompt = PromptTemplate.from_template(template=f"""
+            Task: Categorize the given entity into one of the predefined categories.
 
             Available Categories:
             {categories}
 
             Instructions:
             1. Carefully analyze the entity's characteristics, context, and inherent properties.
-            2. Select the MOST APPROPRIATE category that best describes the entity.
-            3. If the entity does not clearly fit into any category, respond with "UNCATEGORIZED".
+            2. Select the most appropriate category that best describes the entity.
+            3. If the entity does not clearly fit into any category, respond with "uncategorized".
             4. Provide a brief (1-2 sentence) explanation for your categorization.
             5. Select only from the Available Categories.
             6. Do not use history of others categorizations.
-            7. All software and operating systems names are considered as products.
 
             Input Entity: {entity}
 
             Respond in JSON format:
             {{{{
-                "category": "Selected Category",
                 "reasoning": "Explanation of why this category was chosen"
+                "category": "Selected Category",
             }}}}
 
             Example:
@@ -143,10 +149,10 @@ class EntityExtractionGraph():
                 "reasoning": "The name format matches the CVE standard for vulnerabilities."
             }}}}
             Example:
-            Entity: "php"
+            Entity: "adobe"
             Output: {{{{
                 "category": "Product",
-                "reasoning": "PHP is a software product."
+                "reasoning": "adobe is a software product."
             }}}}
             """, partial_variables={"categories": category_list})
 
@@ -157,6 +163,8 @@ class EntityExtractionGraph():
         results=chain.invoke({"entity":entity})
         
         start_node=results['category'].lower()
+        
+        print(f"Start Node: {start_node}")
         
         return {"start_node" : start_node}
     
@@ -174,7 +182,9 @@ class EntityExtractionGraph():
         n_top=len(data_entities)
         
         
-        categorization_prompt = PromptTemplate.from_template(template=f"""Task: Categorize the given entity into one of the predefined {n_top} categories.
+        categorization_prompt = PromptTemplate.from_template(template=f"""
+            
+            Task: Categorize the given entity into one of the predefined {n_top} categories.
 
             Available Categories:
             {data_entities}
@@ -184,7 +194,7 @@ class EntityExtractionGraph():
             
             Instructions:
             1. Carefully analyze the entity's characteristics, context, and inherent properties.
-            2. Select the MOST APPROPRIATE category that best describes the entity.
+            2. Select the most appropriate category that best describes the entity.
             3. If the entity does not clearly fit into any category, respond with "None".
             4. Provide a brief (1-2 sentence) explanation for your categorization.
 
@@ -193,8 +203,8 @@ class EntityExtractionGraph():
 
             Respond in JSON format:
             {{{{
-                "category": "Selected Category",
                 "reasoning": "Explanation of why this category was chosen"
+                "category": "Selected Category",       
             }}}}
 
             Example:
@@ -212,6 +222,8 @@ class EntityExtractionGraph():
         results=chain.invoke({"entity":entity})
         
         target_node=results['category'].lower()
+        
+        print(f"Target Node: {target_node}")
 
         return {"target_node": target_node}
     
@@ -254,7 +266,7 @@ class EntityExtractionGraph():
         workflow.add_node("verify", self.verify_entities)
         workflow.add_node("categorize_input", self.start_entity_categorization)
         workflow.add_node("categorize_output", self.target_entity_categorization)
-        workflow.add_node("human_feedback", self.human_feedback)
+        #workflow.add_node("human_feedback", self.human_feedback)
         workflow.add_node("final_changes", self.final_changes)
         
         # Define edges
@@ -269,15 +281,16 @@ class EntityExtractionGraph():
             }
         )
         workflow.add_edge("categorize_input", "categorize_output")
-        workflow.add_edge("categorize_output", "human_feedback")
-        workflow.add_conditional_edges(
-            "human_feedback",
-            lambda state: "final_changes" if state['feedback'] else "categorize_input",
-            {
-                "final_changes": "final_changes",
-                "categorize_input": "categorize_input"
-            }
-        )
+        workflow.add_edge("categorize_output", "final_changes")
+        #workflow.add_edge("categorize_output", "human_feedback")
+        #workflow.add_conditional_edges(
+        #    "human_feedback",
+        #    lambda state: "final_changes" if state['feedback'] else "categorize_input",
+        #    {
+        #        "final_changes": "final_changes",
+        #        "categorize_input": "categorize_input"
+        #    }
+        #)
              
         # Compile the graph
         return workflow.compile()
@@ -305,4 +318,17 @@ def main():
         print(f"Desired Entity Type: {result.get('target_data')}")
 
 if __name__ == "__main__":
+    
+    entity_graph = EntityExtractionGraph(model=ChatOllama(model="llama3.1:8b",temperature=0)).create_entity_extraction_graph()
+
+    
+    display(
+    Image(
+        entity_graph.get_graph().draw_mermaid_png(
+            draw_method=MermaidDrawMethod.API,
+            output_file_path="graphEx.png",
+        )
+    ))
+    
     main()
+    
