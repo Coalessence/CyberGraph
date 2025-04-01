@@ -90,7 +90,7 @@ def get_exact_candidate(input: str, type: str, key: str) -> Optional[str]:
     return candidate[0]["candidate"] if candidate else None
 
 @tool
-def get_cve_product(
+def get_product_cve(
     product: Annotated[str, "Product mentioned in the question. Return None if no mentioned."]
 ):
     """Useful for when you need to find all the vulnerabilities of a software product."""
@@ -117,6 +117,34 @@ def get_cve_product(
     data = graph.query(vulnerabilty_product_base_query, params=params)
     print(data)
     return data
+
+@tool
+def get_cve_product(
+    cve: Annotated[str, "CVE ID mentioned in the question. Return None if no mentioned."]
+):
+    """Useful for when you need to find all the products related to a vulnerability."""
+    params = {}
+    filters = []
+    vulnerabilty_product_base_query = """
+    MATCH (p:Product)<-[a:AFFECTS]-(c:CVE)
+    """
+    if cve and isinstance(cve, str):
+        candidate_cve = get_exact_candidate(cve, "CVE", "id")
+        if not candidate_cve:
+            return "The mentioned cve was not found"
+        filters.append(('c.id = "{candidate_cve}"').format(candidate_cve=candidate_cve))
+
+    if filters:
+        vulnerabilty_product_base_query += " WHERE "
+        vulnerabilty_product_base_query += " AND ".join(filters)
+    vulnerabilty_product_base_query += """
+    RETURN c.id AS cve, p.name as product, count(*) AS number
+    ORDER BY number DESC
+    """
+    print(f"Using parameters: {params}")
+    data = graph.query(vulnerabilty_product_base_query, params=params)
+    return data
+
 
 @tool
 def get_multiple_cve_information(
@@ -248,6 +276,58 @@ def get_cve_description(
     return data
 
 @tool
+def get_cve_cvss(
+    cve: Annotated[str, "CVE ID mentioned in the question. Return None if no mentioned."]
+):
+    """Useful for when you need to find the CVSS score of a CVE."""
+    params = {}
+    filters = []
+    cve_cvss_base_query = """
+    MATCH (c:CVE)-[:HAS_METRIC]->(m:CVSS)
+    """
+    if cve and isinstance(cve, str):
+        candidate_cve = get_exact_candidate(cve, "CVE", "id")
+        if not candidate_cve:
+            return "The mentioned CVE was not found"
+        filters.append(('c.id = "{candidate_cve}"').format(candidate_cve=candidate_cve))
+
+    if filters:
+        cve_cvss_base_query += " WHERE "
+        cve_cvss_base_query += " AND ".join(filters)
+    cve_cvss_base_query += """
+    RETURN c.id AS cve, m.baseScore as base_score, m.exploitabilityScore as exploitability_score, m.impactScore as impact_score
+    """
+    print(f"Using parameters: {params}")
+    data = graph.query(cve_cvss_base_query, params=params)
+    return data
+
+@tool
+def get_cve_epss(
+    cve: Annotated[str, "CVE ID mentioned in the question. Return None if no mentioned."]
+):
+    """Useful for when you need to find the EPSS score of a CVE."""
+    params = {}
+    filters = []
+    cve_epss_base_query = """
+    MATCH (c:CVE)-[:HAS_EPSS]->(e:EPSS)
+    """
+    if cve and isinstance(cve, str):
+        candidate_cve = get_exact_candidate(cve, "CVE", "id")
+        if not candidate_cve:
+            return "The mentioned CVE was not found"
+        filters.append(('c.id = "{candidate_cve}"').format(candidate_cve=candidate_cve))
+
+    if filters:
+        cve_epss_base_query += " WHERE "
+        cve_epss_base_query += " AND ".join(filters)
+    cve_epss_base_query += """
+    RETURN c.id AS cve, e.probability as probability , e.percentile as percentile
+    """
+    print(f"Using parameters: {params}")
+    data = graph.query(cve_epss_base_query, params=params)
+    return data
+
+@tool
 def get_cwe_cve(
     cwe: Annotated[int, "CWE ID mentioned in the question. Return None if no mentioned."]
 ):
@@ -325,6 +405,32 @@ def get_cwe_description(
     """
     print(f"Using parameters: {params}")
     data = graph.query(cwe_description_base_query, params=params)
+    return data
+
+@tool
+def get_cwe_detection(
+    cwe: Annotated[str, "CWE ID mentioned in the question. Return None if no mentioned."]
+):
+    """Useful for when you need to find the detection information of a CWE."""
+    params = {}
+    filters = []
+    cwe_detection_base_query = """
+    MATCH (c:CWE)-[cbdb:CAN_BE_DETECTED_BY]->(det:DetectionMethod )
+    """
+    if cwe and isinstance(cwe, str):
+        candidate_cwe = get_exact_candidate(cwe, "CWE", "description")
+        if not candidate_cwe:
+            return "The mentioned CWE was not found"
+        filters.append(('c.description = "{candidate_cwe}"').format(candidate_cwe=candidate_cwe))
+
+    if filters:
+        cwe_detection_base_query += " WHERE "
+        cwe_detection_base_query += " AND ".join(filters)
+    cwe_detection_base_query += """
+    RETURN cwe .id as id , det.name as methodName, cbdb.description as description , cbdb.effectiveness as effectiveness
+    """
+    print(f"Using parameters: {params}")
+    data = graph.query(cwe_detection_base_query, params=params)
     return data
 
 @tool
@@ -459,6 +565,56 @@ def get_cna_link(
     data = graph.query(cna_link_base_query, params=params)
     return data
 
+@tool
+def get_cna_cve(
+    cna: Annotated[str, "CNA ID mentioned in the question. Return None if no mentioned."]
+):
+    """Useful for when you need to find the CVE id from a CNA."""
+    params = {}
+    filters = []
+    cna_cve_base_query = """
+    MATCH (c:CVE)<-[:ASSIGNED]-(n:CNA)
+    """
+    if cna and isinstance(cna, str):
+        candidate_cna = get_exact_candidate(cna, "CNA", "link")
+        if not candidate_cna:
+            return "The mentioned CNA was not found"
+        filters.append(('n.link = "{candidate_cna}"').format(candidate_cna=candidate_cna))
+
+    if filters:
+        cna_cve_base_query += " WHERE "
+        cna_cve_base_query += " AND ".join(filters)
+    cna_cve_base_query += """
+    RETURN n.link AS cna, c.id AS answer
+    """
+    data = graph.query(cna_cve_base_query, params=params)
+    return data
+
+@tool
+def get_cna_contacts(
+    cna: Annotated[str, "CNA ID mentioned in the question. Return None if no mentioned."]
+):
+    """Useful for when you need to find the contacts of a CNA."""
+    params = {}
+    filters = []
+    cna_contacts_base_query = """
+    MATCH (n:CNA)-[:REACHABLE_BY_EMAIL]->(info:ContactInfo)
+    """
+    if cna and isinstance(cna, str):
+        candidate_cna = get_exact_candidate(cna, "CNA", "link")
+        if not candidate_cna:
+            return "The mentioned CNA was not found"
+        filters.append(('n.link = "{candidate_cna}"').format(candidate_cna=candidate_cna))
+
+    if filters:
+        cna_contacts_base_query += " WHERE "
+        cna_contacts_base_query += " AND ".join(filters)
+    cna_contacts_base_query += """
+    RETURN n.link AS cna,  c.email AS email, c.description AS description
+    """
+    print(f"Using parameters: {params}")
+    data = graph.query(cna_contacts_base_query, params=params)
+    return data
 
 @tool
 def get_most_recent_vulnerability(
@@ -493,6 +649,33 @@ def get_most_recent_vulnerability(
     print(f"Using parameters: {params}")
     data = graph.query( most_recent_cve_query, params=params)
     return data
+
+@tool
+def get_capec_cwe(
+    capec: Annotated[int, "CAPEC ID mentioned in the question. Return None if no mentioned."]
+):
+    """Useful for when you need to find the CWE id from a CAPEC."""
+    params = {}
+    filters = []
+    capec_cwe_base_query = """
+    MATCH (c:CAPEC)-[:HAS_WEAKNESS]->(w:CWE)
+    """
+    capec=str(capec)
+    if capec and isinstance(capec, str):
+        candidate_capec = get_exact_candidate(capec, "CAPEC", "id")
+        if not candidate_capec:
+            return "The mentioned CAPEC was not found"
+        filters.append(('c.id = "{candidate_capec}"').format(candidate_capec=candidate_capec))
+
+    if filters:
+        capec_cwe_base_query += " WHERE "
+        capec_cwe_base_query += " AND ".join(filters)
+    capec_cwe_base_query += """
+    RETURN c.id AS capec, w.id AS answer
+    """
+    data = graph.query(capec_cwe_base_query, params=params)
+    return data
+
 
 graph_schema_txt=graph.get_schema
 
@@ -557,10 +740,11 @@ graph_schema = parse_graph_schema(graph_schema_txt)
 categories = get_entities_from_schema(graph_schema)
 
 tools = {
-    "cve": [get_cve_product, get_cve_cwe, get_cve_description, get_cve_cna, get_cve_information, get_multiple_cve_information],
-    "cwe": [get_cwe_description, get_cwe_capec, get_cwe_cve],
-    "capec": [get_capec_description, get_capec_mitigation, get_capec_attack_pattern],
-    "cna": [get_cna_link],
+    "cve": [get_cve_product, get_cve_cwe, get_cve_description, get_cve_cna, get_cve_information, get_multiple_cve_information, get_most_recent_vulnerability, get_cve_epss, get_product_cve],
+    "cwe": [get_cwe_description, get_cwe_capec, get_cwe_cve, get_cwe_detection],
+    "capec": [get_capec_description, get_capec_mitigation, get_capec_attack_pattern, get_capec_cwe],
+    "cna": [get_cna_link, get_cna_cve, get_cna_contacts],
+    "threatActor": [get_threatActors],
 }
 
 generate_indexes()
