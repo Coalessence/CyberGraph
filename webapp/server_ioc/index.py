@@ -40,16 +40,18 @@ def get_ioc():
             cyberGraph.close()
             return ip_analyzed.__dict__, 200
         elif re.match(domain_pattern, ioc_clean):
+            
             cyberGraph = IoCGraph(neo4j_uri, neo4j_username, neo4j_password)
             res = cyberGraph.get_domain(ioc_clean)
             if res != None:
-                cyberGraph.close()
+                cyberGraph.close()                
                 return res, 200
             else:
                 domain_analyzed = DOMAIN(ioc_clean)
                 if domain_analyzed.__dict__.get('domain') != None:
                     cyberGraph.handle_domain(domain_analyzed.__dict__,False)
             cyberGraph.close()
+            print("\n \n "+str(domain_analyzed.__dict__)+"\n \n")
             return domain_analyzed.__dict__, 200
         elif re.match(md5_pattern, ioc_clean) or re.match(sha256_pattern, ioc_clean) or re.match(sha1_pattern, ioc_clean):
             cyberGraph = IoCGraph(neo4j_uri, neo4j_username, neo4j_password)
@@ -75,6 +77,20 @@ def get_threat_actor():
     if threat_actor != None and threat_actor != "":
         cyberGraph = IoCGraph(neo4j_uri, neo4j_username, neo4j_password)
         res = cyberGraph.get_threat_actor(threat_actor)
+        if res != None:
+            cyberGraph.close()
+            return res, 200
+        else:
+            return {'found':False}, 200
+    else:
+        return Response(status=400)
+    
+@app.route('/vulnerability', methods=['GET'])
+def get_vulnerability():
+    vulnerability = request.args.get('cveId')
+    if vulnerability != None and vulnerability != "":
+        cyberGraph = IoCGraph(neo4j_uri, neo4j_username, neo4j_password)
+        res = cyberGraph.get_vulnerability(vulnerability)
         if res != None:
             cyberGraph.close()
             return res, 200

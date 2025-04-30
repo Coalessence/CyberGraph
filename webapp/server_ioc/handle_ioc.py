@@ -224,7 +224,7 @@ class IoCGraph:
                 OPTIONAL MATCH (domain_info)-[:HAS_VULN]->(cves:CVE)
                 OPTIONAL MATCH (domain_info)-[:HAS_OPEN_PORT]->(ports:PORTS)
                 OPTIONAL MATCH (domain_info)-[:HAS_PRODUCT]->(prod:PRODUCTS)
-                OPTIONAL MATCH (domain_info)-[:HAS_SUBDOMAIN]->(dom:SUBDOMAIN) 
+                OPTIONAL MATCH (domain_info)-[:HAS_SUBDOMAIN]->(dom:SUBDOMAIN)
                 RETURN distinct(domain_info.domain) AS domain, domain_info.organization AS organization, ip_address.ip AS ipv4, collect(distinct({ key: dns_rec.key, value: dns_rec.value })) AS dns_rec, score_rep.score AS reputation, collect(distinct(hostnames.hostname)) AS hostnames, collect(distinct({id : cves.id, description: cves.description, url : 'https://nvd.nist.gov/vuln/detail/'+cves.id })) AS vulnerabilities, collect(distinct(ports.port)) AS ports, collect(distinct(prod.name)) AS products, collect(distinct(dom.domain)) AS subdomains
                 """,
                 address=value
@@ -232,17 +232,33 @@ class IoCGraph:
             record = result.single()
             if record != None and record.get('domain') != None:
                 if record.get('vulnerabilities')[0].get('id') != None:
+                    
+                    result2 = session.run(
+                        """
+                        MATCH (domain_info:DOMAIN)
+                        WHERE domain_info.domain=$address
+                        MATCH (domain_info)-[:HAS_VULN]->(cves:CVE)
+                        OPTIONAL MATCH (cves)-[:HAS_EPSS]->(epss:EPSS)
+                        OPTIONAL MATCH (cves)-[:HAS_METRIC]->(cvss:Metric)
+                        RETURN cves.id as id, cves.description as description, 'https://nvd.nist.gov/vuln/detail/'+cves.id as url, round(epss.probability*cvss.baseScore, 1) as probability
+                        ORDER BY probability DESC
+                        """,
+                        address=value
+                    )
+                    
+                    record2 = result2.data()
+
                     return {
                         'domain':record.get('domain'),
                         'ipv4':record.get('ipv4'),
                         'reputation':record.get('reputation'),
                         'dns_records_other_format':record.get('dns_rec'),
-                        'vulnerabilities_other_format':record.get('vulnerabilities'),
+                        'vulnerabilities_other_format':record2,
                         'organization':record.get('organization'),
                         'hostnames':record.get('hostnames'),
                         'ports':record.get('ports'),
                         'products':record.get('products'),
-                        'subdomains':record.get('subdomains')
+                        'subdomains':record.get('subdomains'),
                     }
                 else:
                     return {
@@ -792,3 +808,35 @@ class IoCGraph:
                         'technique':record.get('techniques')
                     }
             return None 
+        
+    # ==============================================
+    # =============== HANDLE Vulnerabilities ===================
+    # ==============================================   
+    def get_vulnerability(self, value):
+            with self.driver.session() as session:
+                result = session.run(
+                    """
+                    MATCH (cve:CVE)
+                    WHERE cve.id=$name
+                    OPTIONAL MATCH (cve)-[:HAS_EPSS]->(epss:EPSS)
+                    OPTIONAL MATCH (cve)-[:HAS_METRIC]->(cvss:Metric)
+                    OPTIONAL MATCH (cve)-[:HAS_WEAKNESS]->(cwe:CWE)-[:HAS_RELATED_ATTACK_PATTERN]->(capec:CAPEC)
+                    OPTIONAL MATCH (capec)-[:CAN_BE_MITIGATED_BY]->(mitigation:Mitigation)
+                    With cve.id as id, cve.description as description, 'https://nvd.nist.gov/vuln/detail/'+cve.id as url, round(epss.probability*cvss.baseScore, 1) as probability,
+                    cve.lastModifiedDate as modified, cve.publishedDate as published,  capec.id as capec, capec.name as capecName, capec.description as capecDesc, collect(mitigation.description) as mitigations
+                    Return id, description, url, probability, modified, published, collect(DISTINCT({ id: capec, name: capecName, description : capecDesc, mitigations : mitigations})) as attack_patterns
+                    """,
+                    name=value
+                )
+                record = result.single()
+                if record != None and record.get('id') != None:
+                    return {
+                        'cveId':record.get('id'),
+                        'description':record.get('description'),
+                        'url':record.get('url'),
+                        'severity':record.get('probability'),
+                        'published':record.get('published'),
+                        'modified':record.get('modified'),
+                        'attackPatterns' :record.get('attack_patterns')
+                    }
+                return None

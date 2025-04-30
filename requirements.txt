@@ -6,7 +6,7 @@ langchain_neo4j==0.3.0
 langchain_ollama==0.2.3
 langgraph==0.2.71
 mitreattack_python==3.0.6
-neo4j==5.27.0
+neo4j-rust-ext==5.27.0
 pydantic==2.10.6
 Requests==2.32.3
 selenium==4.28.1

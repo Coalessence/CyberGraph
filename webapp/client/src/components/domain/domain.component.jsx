@@ -1,4 +1,9 @@
-import {List, Table, Tooltip, Row, Col, Collapse, Tag } from "antd";
+import {List, Table, Tooltip, Row, Col, Collapse, Tag, Button } from "antd";
+import { InfoCircleOutlined } from '@ant-design/icons';
+import axios from "axios";
+import { useState } from "react";
+
+import Vulnerability from "../vulnerability/vulnerability.component";
 
 const { Panel } = Collapse;
 
@@ -38,6 +43,40 @@ const CircleIndicator = ({ percentage }) => {
 };
 
 const Domain = ({ data }) => {
+
+    // Add state for tracking the selected vulnerability
+    const [selectedVulnerability, setSelectedVulnerability] = useState(null);
+    const [loading, setLoading] = useState(false);
+
+    // Handler function to fetch vulnerability details
+    const handleViewVulnerabilityDetails = async (cveId) => {
+        try {
+            setLoading(true);
+            // Make API call to fetch vulnerability details
+            const response = await axios.get(`http://localhost:3002/vulnerability`,{
+                params: {
+                    cveId: cveId,
+                }
+            });
+            setSelectedVulnerability(response.data);
+        } catch (error) {
+            console.error(`Error fetching vulnerability details: ${error}`);
+            // You could add a message.error here to show an error notification
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Handler to go back from vulnerability details view
+    const handleBackFromVulnerability = () => {
+        setSelectedVulnerability(null);
+    };
+
+    // If a vulnerability is selected, show the vulnerability component
+    if (selectedVulnerability) {
+        return <Vulnerability data={selectedVulnerability} onBack={handleBackFromVulnerability} />;
+    }
+
     const columns_dns = [
         {
             title: "DNS Record Key",
@@ -54,25 +93,45 @@ const Domain = ({ data }) => {
         {
             title: "CVE ID",
             dataIndex: "id",
-            align:"center"
+            align:"center",
+            width: 150,
+            render: (id) => (
+                <span style={{ fontWeight: "bold", fontSize: "16px" }}>{id}</span>
+            )
         },
         {
             title: "Description",
             dataIndex: "description",
             align:"center",
-            render: (descr) =>  descr != "N/A" ? descr.substring(0,200)+"...(visit the URL for more info)." : "N/A",
+            render: (descr) =>  descr != "N/A" ? descr.substring(0,300)+"...(visit the details for more info)." : "N/A",
             tipText: "test"
         },
         {
-            title: "URL",
-            dataIndex: "url",
+            title: "Priority",
+            dataIndex: "probability",
             align:"center",
-            render: (url) => <a href={url}>{url}</a>,
+            width: 150
+        },
+        {
+            title: "Actions",
+            key: "actions",
+            align: "center",
+            width: 150,
+            render: (_, record) => (
+                <Button 
+                    type="primary" 
+                    icon={<InfoCircleOutlined />}
+                    onClick={() => handleViewVulnerabilityDetails(record.id)}
+                    loading={loading}
+                >
+                    Details
+                </Button>
+            ),
         },
     ];
     return (
         <>
-        <div style={{paddingLeft:"15%", paddingRight:"15%"}}>
+        <div style={{paddingLeft:"5%", paddingRight:"5%"}}>
 <Row style={{backgroundColor:"#595959", paddingTop: "25px", borderRadius: "10px" }}>
     <Col xs={24} md={24} style={{backgroundColor:"#595959"}}>
         <p style={{color:"white", marginLeft: "25px"}}>Summary</p>
@@ -194,14 +253,17 @@ const Domain = ({ data }) => {
                             dataSource={data.vulnerabilities_other_format}
                             pagination={{
                                 position: ["bottomCenter"],
-                                pageSize: 5,
-                                pageSizeOptions: [5, 10, 15],
+                                pageSize: 10,
+                                pageSizeOptions: [10, 20, 50],
                                 simple: true,
                             }}
                             scroll={{
-                                y: 240,
+                                y: 500,
+                                x:1200
                             }}
+                            size="large"
                             rowKey={record => record.value + Math.floor(Math.random() * (1000 - 1 + 1)) + 1}
+                            style={{ fontSize: "16px" }}
                         />
                     </Col>
                     )}

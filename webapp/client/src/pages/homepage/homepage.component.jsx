@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Row, Col, Typography, Empty, Button, Card, Tooltip } from "antd";
-import { Jumbotron, Search, SearchNew, FirstQueryResult, IpPrivate, IpPublic, Domain, Hash, SearchThreat, Threat_Actor } from "../../components";
+import { Jumbotron, Search, SearchNew, FirstQueryResult, IpPrivate, IpPublic, Domain, Hash, SearchThreat, Threat_Actor, Vulnerability } from "../../components";
 import { LeftOutlined } from '@ant-design/icons';
 import { SafetyCertificateOutlined, SearchOutlined, RadarChartOutlined } from '@ant-design/icons';
 

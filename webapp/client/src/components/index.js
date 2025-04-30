@@ -8,3 +8,4 @@ export { default as IpPublic } from "./ip-public/ip-public.component";
 export { default as Domain } from "./domain/domain.component";
 export { default as Hash } from "./hash/hash.component";
 export { default as Threat_Actor } from "./threat_actor/threat_actor.component";
+export { default as Vulnerability } from "./vulnerability/vulnerability.component";

@@ -15,6 +15,7 @@ class CyberGraph:
 
     def __init__(self, uri, user, password):
         self.driver = GraphDatabase.driver(uri, auth=(user, password))
+        self.db="neo4j"
 
     def close(self):
         self.driver.close()
@@ -149,41 +150,47 @@ class CyberGraph:
             cnaName=elements["cnaName"])
 
     def write_cna(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_cna, elements)
 
     def write_disclosure_policy(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_disclosure_policy, elements)
 
     def write_organization_type(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_organization_type, elements)
     
     def write_security_advisory(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_security_advisory, elements)
 
     def write_contact_info(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_contact_info, elements)
 
     def write_country(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_country, elements)
 
     def write_scope(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_scope, elements)
     
     def write_cna_parent(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_cna_parent, elements)
+            
+    def write_cna_index(self):
+        self.driver.execute_query("""CREATE INDEX cna_contact IF NOT EXISTS FOR (info:ContactInfo) ON (info.cnaEmail )""")
 
     def handle_cna(self, source_filename):
         with open(source_filename, mode='r') as file:
             data = json.load(file)
             cna_count = len(data["cnas"])
+            
+            self.write_cna_index()
+            
             for idx,cna in enumerate(data["cnas"],1):
                 self.printProgressBar(idx,cna_count,"CNA")
 
@@ -432,65 +439,68 @@ class CyberGraph:
 
 
     def write_cwe(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_cwe, elements)
 
     def write_cwe_status(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_cwe_status, elements)
 
     def write_cwe_related_cwe(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_cwe_related_cwe, elements)
 
     def write_weakness_ordinality(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_weakness_ordinality, elements)
 
     def write_cwe_alternative_term(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_cwe_alternative_term, elements)
 
     def write_phase(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_phase, elements)
 
     def write_security_property(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_security_property, elements)
 
     def write_impact(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_impact, elements)
 
     def write_cwe_consequence(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_cwe_consequence, elements)
 
     def delete_cwe_consequences(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._remove_cwe_consequences, elements)
 
     def write_detection_method(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_detection_method, elements)
 
     def write_cwe_mitigation(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_cwe_mitigation, elements)
 
     def write_functional_area(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_functional_area, elements)
 
     def write_affected_resource(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_affected_resource, elements)
 
     def write_cwe_related_capec(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_cwe_related_capec, elements)
 
+    def write_cwe_index(self):
+        self.driver.execute_query("""CREATE INDEX cwe_id IF NOT EXISTS FOR (cwe:CWE) ON (cwe.id )""")
+    
     def handle_cwe(self, source_filename):
         ordinality_descriptions = {
             "Primary":"Where the weakness exists independent of other weaknesses",
@@ -506,6 +516,9 @@ class CyberGraph:
         detection_method_regex = re.compile("^METHOD:(.*?):DESCRIPTION:(.*?)(?::EFFECTIVENESS:(.*))?$")
         mitigation_regex = re.compile("^(?:PHASE:(.*?))?(?::STRATEGY:(.*?))?[:]*(?:DESCRIPTION:(.*?))?(?::EFFECTIVENESS:(.*))?$")
 
+        # Creating the indexes for the CWE nodes
+        self.write_cwe_index()
+        
         cwe_count = 0
         with open(source_filename, mode='r', encoding='utf-8') as csv_file:
             csv_reader = csv.DictReader(csv_file)
@@ -806,64 +819,69 @@ class CyberGraph:
             capecId=elements["capecId"])
 
     def write_capec(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_capec, elements)
 
     def write_capec_status(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_capec_status, elements)
 
     def write_capec_alternative_term(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_capec_alternative_term, elements)
 
     def write_capec_scale_level(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_capec_scale_level, elements)
 
     def write_execution_flow(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_execution_flow, elements)
 
     def write_technique(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_technique, elements)
 
     def write_prerequisite(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_prerequisite, elements)
 
     def write_skill(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_skill, elements)
 
     def write_asset(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_asset, elements)
 
     def write_indicator(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_indicator, elements)
 
     def delete_capec_consequences(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._remove_capec_consequences, elements)
 
     def write_capec_consequence(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_capec_consequence, elements)
 
     def write_capec_mitigation(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_capec_mitigation, elements)
 
     def write_capec_example(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_capec_example, elements)
 
     def write_capec_related_capec(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_capec_related_capec, elements)
+    
+    def create_capec_index(self):
+        self.driver.execute_query("""
+            CREATE INDEX capec_id IF NOT EXISTS FOR (capec:CAPEC) ON (capec.id)
+            """)
 
     def handle_capec(self, source_filename):
         alternative_term_regex = re.compile("^TERM:(.*?)(?::DESCRIPTION[:]*(.*))?$")
@@ -872,6 +890,9 @@ class CyberGraph:
         capec_consequence_regex = re.compile("^(?:SCOPE:(.*?))?(?:TECHNICAL IMPACT:(.*?))?(?::NOTE:(.*))?$")
         related_capec_regex = re.compile("^NATURE:(.*?):CAPEC ID:(.*)$")
 
+        # Creating the indexes for the CAPEC nodes
+        self.create_capec_index()
+        
         capec_count = 0
         with open(source_filename, mode='r', encoding='utf-8') as csv_file:
             csv_reader = csv.DictReader(csv_file)
@@ -1018,11 +1039,11 @@ class CyberGraph:
     # ==============================================
     
     def write_epss(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_epss, elements)
     
     def clean_epss(self):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._delete_epss)
     
     @staticmethod
@@ -1115,15 +1136,15 @@ class CyberGraph:
             lastModified=elements["lastModified"])
             
     def write_source_v2_acceptance_level(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_source_v2_acceptance_level, elements)
     
     def write_source_v3_acceptance_level(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_source_v3_acceptance_level, elements)
     
     def write_source_cwe_acceptance_level(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_source_cwe_acceptance_level, elements)
     
     def handle_sources(self, source_filename):
@@ -1182,11 +1203,11 @@ class CyberGraph:
             type=elements["type"])
     
     def write_cpe_title(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_cpe_title, elements)
             
     def write_cpe_refs(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_cpe_refs, elements)
 
     def handle_cpe(self, cpe_filename):
@@ -1304,35 +1325,43 @@ class CyberGraph:
             versionEndExcluding=elements["versionEndExcluding"])
                        
     def write_cve(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_cve, elements)
 
     def write_cve_related_cna(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_cve_related_cna, elements)
 
     def write_cve_related_cwe(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_cve_related_cwe, elements)
     
     def write_metric(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_metric, elements)
 
     def write_reference(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_reference, elements)
 
     def write_vendor_and_product(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_vendor_and_product, elements)
 
     def write_version(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_version, elements)
+            
+    def create_cve_index(self):
+        self.driver.execute_query("""
+            CREATE TEXT INDEX cve_id IF NOT EXISTS FOR (cve:CVE) ON (cve.id)
+            """)
 
     def handle_cve(self, source_filename):
         with open(source_filename, mode="r", encoding='utf-8') as file:
+            
+            self.create_cve_index()
+            
             data = json.load(file)
             cve_count = len(data["vulnerabilities"])
             for idx,cve in enumerate(data["vulnerabilities"],1):
@@ -1445,11 +1474,11 @@ class CyberGraph:
             link=elements["link"])
 
     def write_tactic(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_tactic, elements)
 
     def write_mitre_technique(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_mitre_technique, elements)
 
     # ==============================================
@@ -1487,15 +1516,15 @@ class CyberGraph:
                 link = elements["link"])
               
     def write_group(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_GROUP, elements)
 
     def write_alias(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_alias, elements)
 
     def write_group_with_technique(self, elements):
-        with self.driver.session() as session:
+        with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_group_with_technique, elements)
     
     def handle_group(self, json):
@@ -1582,6 +1611,7 @@ if __name__ == "__main__":
     cyberGraph.handle_capec("capec.csv")
     cyberGraph.handle_cve("dump.json")
     cyberGraph.handle_epss("epss.csv")
+    cyberGraph.first_mitre_run("enterprise-attack.json")
     #cyberGraph.handle_sources("sources.json")
     #cyberGraph.handle_cpe("cpe.json")
 
