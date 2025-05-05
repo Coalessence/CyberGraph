@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Project Files Structure
 * `webapp`: it's a *react* project that utilizes the CVE graph database (inside they're both defined the *front* and *back* end);
 * `retrieve_data.py`: script used to retrieve all sort of info related to vulnetabilities (CNA, CVE, CWE, CAPEC);
@@ -50,4 +49,3 @@
    *  Inside the `client` and `server` folder run `yarn install`
    *  Create a `.env` file in the `server` folder containing all the credentials necessary to connect to a local Neo4j graph database (*see previous points*)
    *  Then run in 2 separate terminals `yarn start`, one being inside the `client` folder and the other one being inside the `server` one
->>>>>>> 2b5163014c904d68252902e15df122063135477f
