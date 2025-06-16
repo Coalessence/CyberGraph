@@ -1238,6 +1238,132 @@ class CyberGraph:
                                 })
                 
             print("")
+            
+    # ==============================================
+    # =============== HANDLE EUVD ==================
+    # ==============================================
+    
+    @staticmethod
+    def _create_euvd(tx, elements):
+        tx.run("""
+            MERGE (euvd:EUVD { id:$id, datePublished:$datePublished, dateUpdated:$dateUpdated })
+            SET euvd.description=$description
+            """,    
+            id=elements["id"],
+            description=elements["description"],
+            datePublished=elements["published"],
+            dateUpdated=elements["modified"])
+        
+    @staticmethod
+    def _create_euvd_reference(tx, elements):
+        tx.run("""
+            MATCH (euvd:EUVD { id:$id })
+            MERGE (ref:Reference { url:$url })
+            MERGE (euvd)-[:HAS_REFERENCE]->(ref)
+            """,
+            id=elements["id"],
+            url=elements["url"])
+    @staticmethod
+    def _create_euvd_alias(tx, elements):
+        tx.run("""
+            MATCH (euvd:EUVD { id:$id })
+            MATCH (cve:CVE { id:$alias })
+            MERGE (euvd)-[:HAS_CVE_RELATED]->(cve)
+            """,
+            id=elements["id"],
+            alias=elements["alias"])
+
+    @staticmethod
+    def _create_euvd_product(tx, elements):
+        tx.run("""
+            MATCH (euvd:EUVD { id:$id })
+            MERGE (product:Product {name:$name })
+            SET product.euvdId=$productId
+            MERGE (euvd)-[:HAS_PRODUCT]->(product)
+            """,
+            id=elements["id"],
+            productId=elements["productId"],
+            name=elements["name"])
+        
+    @staticmethod
+    def _create_euvd_vendor(tx, elements):
+        tx.run("""
+            MATCH (euvd:EUVD { id:$id })
+            MERGE (vendor:Vendor {name:$name })
+            SET vendor.euvdId=$vendorId
+            MERGE (euvd)-[:HAS_VENDOR]->(vendor)
+            """,
+            id=elements["id"],
+            vendorId=elements["vendorId"],
+            name=elements["name"])
+    
+    def write_euvd(self, elements):
+        with self.driver.session(database=self.db) as session:
+            return session.execute_write(self._create_euvd, elements)
+        
+    def write_euvd_reference(self, elements):
+        with self.driver.session(database=self.db) as session:
+            return session.execute_write(self._create_euvd_reference, elements)
+        
+    def write_euvd_alias(self, elements):
+        with self.driver.session(database=self.db) as session:
+            return session.execute_write(self._create_euvd_alias, elements)
+    
+    def write_euvd_product(self, elements):
+        with self.driver.session(database=self.db) as session:
+            return session.execute_write(self._create_euvd_product, elements)
+        
+    
+    def create_euvd_index(self):
+        self.driver.execute_query("""
+            CREATE TEXT INDEX euvd_id IF NOT EXISTS FOR (euvd:EUVD) ON (euvd.id)
+            """)
+    
+    def handle_euvd(self, source_filename):
+        with open(source_filename, mode="r", encoding='utf-8') as file:
+            
+            self.create_euvd_index()
+            
+            data = json.load(file)
+            euvd_count = len(data["items"])
+            for idx,euvd in enumerate(data["items"],1):
+                self.printProgressBar(idx,euvd_count,"EUVD")
+                
+                self.write_euvd({
+                    "id": euvd["id"],
+                    "description": euvd["description"],
+                    "published": euvd["datePublished"],
+                    "modified": euvd["dateUpdated"],
+                })
+                
+                for ref in euvd['references'].split("\n"):
+                    self.write_euvd_reference({
+                        "id": euvd["id"],
+                        "url": ref
+                    })
+                
+                for alias in euvd['aliases'].split("\n")[0]:
+                    self.write_euvd_alias({
+                        "id": euvd["id"],
+                        "alias": alias
+                    })
+                
+                """ for product in euvd["enisaIdProducts"]:
+                    self.write_euvd_product({
+                        "id": euvd["id"],
+                        "productId": product["id"],
+                        "version": product["product_version"],
+                        "name": product["product"]["name"].tolower()
+                    }) """
+                
+                """ for vendor in euvd["enisaIdVendors"]:
+                    self.write_euvd_vendor({
+                        "id": euvd["id"],
+                        "vendorId": vendor.get("id", ""),
+                        "name": vendor.get("vendor").get("name", ""),
+                    }) """
+                
+
     
     # ==============================================
     # =============== HANDLE CVE ===================
@@ -1292,7 +1418,7 @@ class CyberGraph:
         # MATCH (ref:Reference:''' + elements["tags"] + ''') WHERE SIZE(LABELS(ref)) = $countLabels
         tx.run("""
             MATCH (cve:CVE { id:$cveId })
-            MERGE (ref { url:$url })
+            MERGE (ref:Reference { url:$url })
             MERGE (cve)-[:HAS_LINK_TO]->(ref)
             """,
             url=elements["url"],
@@ -1323,7 +1449,34 @@ class CyberGraph:
             cpe23Uri=elements["cpe23Uri"],
             versionStartIncluding=elements["versionStartIncluding"],
             versionEndExcluding=elements["versionEndExcluding"])
-                       
+    
+    @staticmethod
+    def _create_version_and(tx, elements):
+        tx.run('''
+            MATCH (hyper:ProductAnd { name:$name, number:$number })
+            MATCH (prd:Product { name:$productName } )
+            MERGE (hyper)-[aff:AFFECTS { vulnerable:$vulnerable, versionStartIncluding:$versionStartIncluding, cpe23Uri:$cpe23Uri } ]->(prd)
+            SET aff.versionEndExcluding=$versionEndExcluding
+            ''',
+            name=elements["name"],
+            number=elements["number"],
+            productName=elements["productName"],
+            vulnerable=elements["vulnerable"],
+            cpe23Uri=elements["cpe23Uri"],
+            versionStartIncluding=elements["versionStartIncluding"],
+            versionEndExcluding=elements["versionEndExcluding"])
+        
+    @staticmethod
+    def _create_hyperedge(tx, elements):
+        tx.run('''
+            MATCH (cve:CVE { id:$cveId })
+            MERGE (hyper:ProductAnd { name:$name, number:$number })
+            CREATE (cve)-[:AFFECTS_WHEN_TOGETHER]->(hyper)
+            ''',
+            name=elements["name"],
+            number=elements["number"],
+            cveId=elements["cveId"])
+    
     def write_cve(self, elements):
         with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_cve, elements)
@@ -1347,10 +1500,20 @@ class CyberGraph:
     def write_vendor_and_product(self, elements):
         with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_vendor_and_product, elements)
+    
 
     def write_version(self, elements):
         with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_version, elements)
+    
+    def write_version_and(self, elements):
+        with self.driver.session(database=self.db) as session:
+            res = session.execute_write(self._create_version_and, elements)        
+
+    def write_hyperedge(self, elements):
+        with self.driver.session(database=self.db) as session:
+            res= session.execute_write(self._create_hyperedge, elements)
+    
             
     def create_cve_index(self):
         self.driver.execute_query("""
@@ -1421,28 +1584,84 @@ class CyberGraph:
                 #Be sure to have run "handle_cpe" first!
                 if("configurations" in cve["cve"]):
                     for configuration in cve["cve"]["configurations"]:
-                        for node in configuration["nodes"]:
-                            for cpe in node["cpeMatch"]:
+                        if "operator" in configuration:
+                            # If the "operator" is present, it means that we are in the AND situation
+
+                            nnumber_of_nodes = len(configuration["nodes"])
+                            hypers=[]
+                            
+                            for i in range(nnumber_of_nodes):
+                                node = configuration["nodes"][i]
+                                hypers.append(node["cpeMatch"][0]["criteria"].split(":")[4])
+
+                            self.write_hyperedge({
+                                "cveId":cve["cve"]["id"],
+                                "number": nnumber_of_nodes,
+                                "name": " ".join(hypers)
+                            })
+                            
+                             
+                            for node in configuration["nodes"]:
                                 
-                                cpe_elements = cpe["criteria"].split(":")
+                                lastvendor = ""
+                                lastproduct = ""
+                                
+                                for cpe in node["cpeMatch"]:
+                                    
+                                    cpe_elements = cpe["criteria"].split(":")
 
-                                self.write_vendor_and_product({
-                                    "vendorName":cpe_elements[3],
-                                    "productName":cpe_elements[4],
-                                    "productType":("Application" if cpe_elements[2]=="a" else "Hardware" if cpe_elements[2]=="h" else "Operating Systems")
-                                })
+                                    if cpe_elements[3] != lastvendor or cpe_elements[4] != lastproduct:
+                                        self.write_vendor_and_product({
+                                            "vendorName":cpe_elements[3],
+                                            "productName":cpe_elements[4],
+                                            "productType":("Application" if cpe_elements[2]=="a" else "Hardware" if cpe_elements[2]=="h" else "Operating Systems")
+                                        })
+                                        lastvendor = cpe_elements[3]
+                                        lastproduct = cpe_elements[4]
 
-                                # TODO - At the moment the graph doesn't model the combination AND/OR of products
-                                # (es. CVE-2019-5163, CVE-2021-43803) or CVE-2017-20026 (where there's no "versionStartIncluding")
-                                if "versionStartIncluding" in cpe:
-                                    self.write_version({
-                                        "cveId":cve["cve"]["id"],
-                                        "productName":cpe_elements[4],
-                                        "vulnerable":cpe["vulnerable"],
-                                        "cpe23Uri":cpe["criteria"],
-                                        "versionStartIncluding":cpe["versionStartIncluding"],
-                                        "versionEndExcluding":cpe["versionEndExcluding"] if "versionEndExcluding" in cpe else None
-                                    })
+                                    # TODO - At the moment the graph doesn't model the combination AND/OR of products
+                                    # (es. CVE-2019-5163, CVE1-2021-43803) or CVE-2017-20026 (where there's no "versionStartIncluding")
+                                    if "versionStartIncluding" in cpe:
+                                        self.write_version_and({
+                                            "name":" ".join(hypers),
+                                            "number": nnumber_of_nodes,
+                                            "productName":cpe_elements[4],
+                                            "vulnerable":cpe["vulnerable"],
+                                            "cpe23Uri":cpe["criteria"],
+                                            "versionStartIncluding":cpe["versionStartIncluding"],
+                                            "versionEndExcluding":cpe["versionEndExcluding"] if "versionEndExcluding" in cpe else None
+                                        })
+                        else:
+                            # If the "operator" is not present, it means that we are in the OR situation
+                            for node in configuration["nodes"]:
+                                
+                                lastvendor = ""
+                                lastproduct = ""
+                                
+                                for cpe in node["cpeMatch"]:
+                                    
+                                    cpe_elements = cpe["criteria"].split(":")
+
+                                    if cpe_elements[3] != lastvendor or cpe_elements[4] != lastproduct:
+                                        self.write_vendor_and_product({
+                                            "vendorName":cpe_elements[3],
+                                            "productName":cpe_elements[4],
+                                            "productType":("Application" if cpe_elements[2]=="a" else "Hardware" if cpe_elements[2]=="h" else "Operating Systems")
+                                        })
+                                        lastvendor = cpe_elements[3]
+                                        lastproduct = cpe_elements[4]
+
+                                    # TODO - At the moment the graph doesn't model the combination AND/OR of products
+                                    # (es. CVE-2019-5163, CVE-2021-43803) or CVE-2017-20026 (where there's no "versionStartIncluding")
+                                    if "versionStartIncluding" in cpe:
+                                        self.write_version({
+                                            "cveId":cve["cve"]["id"],
+                                            "productName":cpe_elements[4],
+                                            "vulnerable":cpe["vulnerable"],
+                                            "cpe23Uri":cpe["criteria"],
+                                            "versionStartIncluding":cpe["versionStartIncluding"],
+                                            "versionEndExcluding":cpe["versionEndExcluding"] if "versionEndExcluding" in cpe else None
+                                        })
 
             print("")
 
@@ -1606,14 +1825,16 @@ if __name__ == "__main__":
 
     cyberGraph = CyberGraph(neo4j_uri, neo4j_username, neo4j_password)
 
-    cyberGraph.handle_cna("cna.json")
-    cyberGraph.handle_cwe("cwe.csv")
-    cyberGraph.handle_capec("capec.csv")
+    #cyberGraph.handle_cna("cna.json")
+    #cyberGraph.handle_cwe("cwe.csv")
+    #cyberGraph.handle_capec("capec.csv")
     cyberGraph.handle_cve("dump.json")
-    cyberGraph.handle_epss("epss.csv")
-    cyberGraph.first_mitre_run("enterprise-attack.json")
+    #cyberGraph.handle_epss("epss.csv")
+    #cyberGraph.first_mitre_run("enterprise-attack.json")
     #cyberGraph.handle_sources("sources.json")
     #cyberGraph.handle_cpe("cpe.json")
-
+    #cyberGraph.handle_euvd("euvd.json")
+    
+    
     cyberGraph.close()
     

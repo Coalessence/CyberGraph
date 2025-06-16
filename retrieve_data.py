@@ -50,6 +50,7 @@ class CVE:
     def create_cves_dump(self, filename="dump"):
         idx = 0
         result_per_page = 2000
+        data = {}
         total_results = self.get_number_existing_cves()
         print("CVEs found: {}".format(str(total_results)))
         print("Starting retrieving data...")
@@ -59,20 +60,27 @@ class CVE:
             response = self.__send_request("https://services.nvd.nist.gov/rest/json/cves/2.0/?noRejected&resultsPerPage={}&startIndex={}".format(result_per_page,idx))
 
             if not idx:
+                data = response
                 with open("{}.json".format(filename), "w") as file:
                     json.dump(response, file, indent = 4)
             else:
-                with open("{}.json".format(filename), "r+") as file:
-                    data = json.load(file)
-                    data["vulnerabilities"].extend(response["vulnerabilities"])
+                data["vulnerabilities"].extend(response["vulnerabilities"])
+                print(len(data["vulnerabilities"]))
+                
+                if idx%50000 == 0:
+                    with open("{}.json".format(filename), "r+") as file:
+                        file.seek(0)
+                        json.dump(data, file, indent = 4)
 
-                    file.seek(0)
-                    json.dump(data, file, indent = 4)
 
             idx += result_per_page
 
             # Needed in order to not get banned from NIST
             time.sleep(10)
+        
+        with open("{}.json".format(filename), "r+") as file:
+            file.seek(0)
+            json.dump(data, file, indent = 4)
         
         print("All CVEs has been downloaded and successfully saved into the \'{}.json\' file.".format(filename))
         
@@ -346,6 +354,81 @@ class CPE:
 
         return output_filename if idx else ""
 
+
+class EUVD:
+    def __init__(self, year=None):
+        load_dotenv()
+        self._retry_sleep = 5    # In seconds
+        if(year is not None):
+            self._year = year
+
+    def __send_request(self,url):
+        while True:
+            userAgent= "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:138.0) Gecko/20100101 Firefox/138.0"
+            res = requests.get(url, headers={"User-Agent": userAgent})
+
+            if res:
+                try:
+                    response = res.json()
+                    break
+                except:
+                    print("Some error occured during the JSON conversion of the API response. A new attempt will be done in {} seconds.".format(self._retry_sleep))
+                    time.sleep(self._retry_sleep)
+            else:
+                print("The EUVD API didn't responded in time. A new attempt will be done in {} seconds.".format(self._retry_sleep))
+                time.sleep(self._retry_sleep)
+        return response
+
+    # 'filename': name of the output file (the default one is 'dump.json')
+    def create_euvd_dump(self, filename="data/euvd"):
+        
+        result_per_page = 100
+        page = 2000
+        idx = page*result_per_page
+        total_results = self.get_number_existing_euvd()
+        complete_data = None
+        print("EUVDs found: {}".format(str(total_results)))
+        print("Starting retrieving data...")
+        while idx < total_results:
+            print('{:.2f}% complete. Processing EUVDs entries from indexes {} to {}'.format((idx/total_results)*100, idx, idx + result_per_page - 1))
+           
+            response = self.__send_request("https://euvdservices.enisa.europa.eu/api/vulnerabilities?size={}&page={}".format(result_per_page,page))
+
+            if not complete_data:
+                complete_data = response
+            else:
+                complete_data["items"].extend(response["items"])
+
+            idx += result_per_page
+            page += 1
+            time.sleep(0.5)
+        
+        # Save the data into a JSON file
+        if not os.path.exists("{}.json".format(filename)):
+            with open("{}.json".format(filename), "w") as file:
+                json.dump(complete_data, file, indent = 4)
+        else:
+            with open("{}.json".format(filename), "r+") as file:
+                file.seek(0)
+                json.dump(complete_data, file, indent = 4)
+                
+        print("All EUVD have been downloaded and successfully saved into the \'{}.json\' file.".format(filename))
+        
+        return "{}.json".format(filename)
+    
+    def get_number_existing_euvd(self):
+        response = self.__send_request("https://euvdservices.enisa.europa.eu/api/vulnerabilities")    
+        return response["total"]
+    
+    def retrieve_single_page(self, page):
+        response = self.__send_request("https://euvdservices.enisa.europa.eu/api/vulnerabilities?size=5&page={}".format(page))
+        return response
+
+    def retrieve_and_save_single_page(self, page, filename):
+        response = self.retrieve_single_page(page)
+        
+        print(json.dumps(response["items"], indent=4))
+    
 class SOURCES:
     def __init__(self):
         load_dotenv()
@@ -659,8 +742,8 @@ if __name__ == "__main__":
     cna = CNA()
     epss = EPSS()
     
-    #epss.create_epss_dump("epss")
-    cves.create_cves_dump()
-    #cwes.create_cwes_dump()
-    #capec.create_capec_dump()
-    #cna.create_cna_dump()
+    epss.create_epss_dump("epss")
+    cves.create_cves_dump(filename="dump2")
+    cwes.create_cwes_dump()
+    capec.create_capec_dump()
+    cna.create_cna_dump()
