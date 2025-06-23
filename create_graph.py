@@ -13,9 +13,9 @@ import sys
 
 class CyberGraph:
 
-    def __init__(self, uri, user, password):
+    def __init__(self, uri, user, password, database="neo4j"):
         self.driver = GraphDatabase.driver(uri, auth=(user, password))
-        self.db="neo4j"
+        self.db=database
 
     def close(self):
         self.driver.close()
@@ -1440,8 +1440,8 @@ class CyberGraph:
         tx.run('''
             MATCH (cve:CVE { id:$cveId })
             MATCH (prd:Product { name:$productName } )
-            MERGE (cve)-[aff:AFFECTS { vulnerable:$vulnerable, versionStartIncluding:$versionStartIncluding, cpe23Uri:$cpe23Uri } ]->(prd)
-            SET aff.versionEndExcluding=$versionEndExcluding
+            CREATE (cve)-[aff:AFFECTS { vulnerable:$vulnerable,  cpe23Uri:$cpe23Uri } ]->(prd)
+            SET aff.versionEndExcluding=$versionEndExcluding, aff.versionStartIncluding=$versionStartIncluding
             ''',
             cveId=elements["cveId"],
             productName=elements["productName"],
@@ -1455,8 +1455,8 @@ class CyberGraph:
         tx.run('''
             MATCH (hyper:ProductAnd { name:$name, number:$number })
             MATCH (prd:Product { name:$productName } )
-            MERGE (hyper)-[aff:AFFECTS { vulnerable:$vulnerable, versionStartIncluding:$versionStartIncluding, cpe23Uri:$cpe23Uri } ]->(prd)
-            SET aff.versionEndExcluding=$versionEndExcluding
+            CREATE (hyper)-[aff:AFFECTS { vulnerable:$vulnerable, cpe23Uri:$cpe23Uri } ]->(prd)
+            SET aff.versionEndExcluding=$versionEndExcluding, aff.versionStartIncluding=$versionStartIncluding
             ''',
             name=elements["name"],
             number=elements["number"],
@@ -1519,11 +1519,17 @@ class CyberGraph:
         self.driver.execute_query("""
             CREATE TEXT INDEX cve_id IF NOT EXISTS FOR (cve:CVE) ON (cve.id)
             """)
+        
+    def create_product_index(self):
+        self.driver.execute_query("""
+            CREATE TEXT INDEX product_name IF NOT EXISTS FOR (prd:Product) ON (prd.name)
+            """)
 
     def handle_cve(self, source_filename):
         with open(source_filename, mode="r", encoding='utf-8') as file:
             
             self.create_cve_index()
+            self.create_product_index()
             
             data = json.load(file)
             cve_count = len(data["vulnerabilities"])
@@ -1544,10 +1550,13 @@ class CyberGraph:
                 # If there are no CWE related the "description" array is empty, so no additional check needed.
                 if "weaknesses" in cve["cve"]:
                     for cwe in cve["cve"]["weaknesses"]:
-                        self.write_cve_related_cwe({
-                            "cweId":cwe["description"][0]["value"].replace("CWE-",""),
-                            "cveId":cve["cve"]["id"]
-                        })
+                        for description in cwe["description"]:
+                            if description["value"]!="NVD-CWE-noinfo" and description["value"]!="NVD-CWE-Other":
+                                # The "value" field is always present, so no additional check needed.
+                                self.write_cve_related_cwe({
+                                    "cweId":description["value"].replace("CWE-",""),
+                                    "cveId":cve["cve"]["id"]
+                                })
                     
                 if "cvssMetricV30" in cve["cve"]["metrics"]:
                     self.write_metric({
@@ -1584,7 +1593,49 @@ class CyberGraph:
                 #Be sure to have run "handle_cpe" first!
                 if("configurations" in cve["cve"]):
                     for configuration in cve["cve"]["configurations"]:
-                        if "operator" in configuration:
+                        for node in configuration["nodes"]:
+                                
+                            lastvendor = ""
+                            lastproduct = ""
+                            
+                            for cpe in node["cpeMatch"]:
+                                
+                                cpe_elements = cpe["criteria"].split(":")
+
+                                if cpe_elements[3] != lastvendor or cpe_elements[4] != lastproduct:
+                                    self.write_vendor_and_product({
+                                        "vendorName":cpe_elements[3],
+                                        "productName":cpe_elements[4],
+                                        "productType":("Application" if cpe_elements[2]=="a" else "Hardware" if cpe_elements[2]=="h" else "Operating Systems")
+                                    })
+                                    lastvendor = cpe_elements[3]
+                                    lastproduct = cpe_elements[4]
+
+                                # TODO - At the moment the graph doesn't model the combination AND/OR of products
+                                # (es. CVE-2019-5163, CVE-2021-43803) or CVE-2017-20026 (where there's no "versionStartIncluding")
+                                if "versionStartIncluding" in cpe:
+                                    self.write_version({
+                                        "cveId":cve["cve"]["id"],
+                                        "productName":cpe_elements[4],
+                                        "vulnerable":cpe["vulnerable"],
+                                        "cpe23Uri":cpe["criteria"],
+                                        "versionStartIncluding":cpe["versionStartIncluding"],
+                                        "versionEndExcluding":cpe["versionEndExcluding"] if "versionEndExcluding" in cpe else None
+                                    })
+                                else:
+                                    self.write_version({
+                                        "cveId":cve["cve"]["id"],
+                                        "productName":cpe_elements[4],
+                                        "vulnerable":cpe["vulnerable"],
+                                        "cpe23Uri":cpe["criteria"],
+                                        "versionStartIncluding": cpe_elements[5] if len(cpe_elements) > 5 else None,
+                                        "versionEndExcluding": None
+                                    })
+                        
+                        
+                        
+                        #uncomment this if you want to handle the AND/OR situation
+                        """if "operator" in configuration:
                             # If the "operator" is present, it means that we are in the AND situation
 
                             nnumber_of_nodes = len(configuration["nodes"])
@@ -1600,7 +1651,6 @@ class CyberGraph:
                                 "name": " ".join(hypers)
                             })
                             
-                             
                             for node in configuration["nodes"]:
                                 
                                 lastvendor = ""
@@ -1628,8 +1678,18 @@ class CyberGraph:
                                             "productName":cpe_elements[4],
                                             "vulnerable":cpe["vulnerable"],
                                             "cpe23Uri":cpe["criteria"],
-                                            "versionStartIncluding":cpe["versionStartIncluding"],
+                                            "versionStartIncluding":cpe["versionStartIncluding"] ,
                                             "versionEndExcluding":cpe["versionEndExcluding"] if "versionEndExcluding" in cpe else None
+                                        })
+                                    else:
+                                        self.write_version_and({
+                                            "name":" ".join(hypers),
+                                            "number": nnumber_of_nodes,
+                                            "productName":cpe_elements[4],
+                                            "vulnerable":cpe["vulnerable"],
+                                            "cpe23Uri":cpe["criteria"],
+                                            "versionStartIncluding":cpe_elements[5] if len(cpe_elements) > 5 else None,
+                                            "versionEndExcluding":None,
                                         })
                         else:
                             # If the "operator" is not present, it means that we are in the OR situation
@@ -1662,6 +1722,15 @@ class CyberGraph:
                                             "versionStartIncluding":cpe["versionStartIncluding"],
                                             "versionEndExcluding":cpe["versionEndExcluding"] if "versionEndExcluding" in cpe else None
                                         })
+                                    else:
+                                        self.write_version({
+                                            "cveId":cve["cve"]["id"],
+                                            "productName":cpe_elements[4],
+                                            "vulnerable":cpe["vulnerable"],
+                                            "cpe23Uri":cpe["criteria"],
+                                            "versionStartIncluding": cpe_elements[5] if len(cpe_elements) > 5 else None,
+                                            "versionEndExcluding": None
+                                        })"""
 
             print("")
 
