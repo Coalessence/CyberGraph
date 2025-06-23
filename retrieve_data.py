@@ -17,6 +17,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.common.by import By
+from webdriver_manager.chrome import ChromeDriverManager
 
 class CVE:
     def __init__(self, year=None):
@@ -65,7 +66,6 @@ class CVE:
                     json.dump(response, file, indent = 4)
             else:
                 data["vulnerabilities"].extend(response["vulnerabilities"])
-                print(len(data["vulnerabilities"]))
                 
                 if idx%50000 == 0:
                     with open("{}.json".format(filename), "r+") as file:
@@ -648,7 +648,7 @@ class CNA:
         options.add_argument("--headless")
 
         driver = webdriver.Chrome(service=Service(), options=options)
-        driver2 = webdriver.Chrome(service=Service(), options=options)
+        driver2 = webdriver.Chrome(service=Service(executable_path=ChromeDriverManager().install()), options=options)
 
         print("Starting retrieving CNAs data...")
         driver.get("https://www.cve.org/PartnerInformation/ListofPartners")
@@ -742,8 +742,8 @@ if __name__ == "__main__":
     cna = CNA()
     epss = EPSS()
     
-    epss.create_epss_dump("epss")
-    cves.create_cves_dump(filename="dump2")
-    cwes.create_cwes_dump()
-    capec.create_capec_dump()
+    #epss.create_epss_dump("epss")
+    #cves.create_cves_dump(filename="dump2")
+    #cwes.create_cwes_dump()
+    #capec.create_capec_dump()
     cna.create_cna_dump()
