@@ -1894,12 +1894,12 @@ if __name__ == "__main__":
 
     cyberGraph = CyberGraph(neo4j_uri, neo4j_username, neo4j_password)
 
-    #cyberGraph.handle_cna("cna.json")
-    #cyberGraph.handle_cwe("cwe.csv")
-    #cyberGraph.handle_capec("capec.csv")
+    cyberGraph.handle_cna("cna.json")
+    cyberGraph.handle_cwe("cwe.csv")
+    cyberGraph.handle_capec("capec.csv")
     cyberGraph.handle_cve("dump.json")
-    #cyberGraph.handle_epss("epss.csv")
-    #cyberGraph.first_mitre_run("enterprise-attack.json")
+    cyberGraph.handle_epss("epss.csv")
+    cyberGraph.first_mitre_run("enterprise-attack.json")
     #cyberGraph.handle_sources("sources.json")
     #cyberGraph.handle_cpe("cpe.json")
     #cyberGraph.handle_euvd("euvd.json")
