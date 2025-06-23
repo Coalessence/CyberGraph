@@ -647,7 +647,7 @@ class CNA:
         options = Options()
         options.add_argument("--headless")
 
-        driver = webdriver.Chrome(service=Service(), options=options)
+        driver = webdriver.Chrome(service=Service(executable_path=ChromeDriverManager().install()), options=options)
         driver2 = webdriver.Chrome(service=Service(executable_path=ChromeDriverManager().install()), options=options)
 
         print("Starting retrieving CNAs data...")
