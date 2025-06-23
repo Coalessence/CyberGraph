@@ -10,6 +10,7 @@ from datetime import datetime
 from io import BytesIO
 from urllib.request import urlopen
 from zipfile import ZipFile
+import chromedriver_binary
 
 # Web scraping imports
 from selenium import webdriver
