@@ -1259,7 +1259,7 @@ class CyberGraph:
         tx.run("""
             MATCH (euvd:EUVD { id:$id })
             MERGE (ref:Reference { url:$url })
-            MERGE (euvd)-[:HAS_REFERENCE]->(ref)
+            CREATE (euvd)-[:HAS_REFERENCE]->(ref)
             """,
             id=elements["id"],
             url=elements["url"])
@@ -1268,7 +1268,7 @@ class CyberGraph:
         tx.run("""
             MATCH (euvd:EUVD { id:$id })
             MATCH (cve:CVE { id:$alias })
-            MERGE (euvd)-[:HAS_CVE_RELATED]->(cve)
+            CREATE (euvd)-[:HAS_CVE_RELATED]->(cve)
             """,
             id=elements["id"],
             alias=elements["alias"])
@@ -1291,7 +1291,7 @@ class CyberGraph:
             MATCH (euvd:EUVD { id:$id })
             MERGE (vendor:Vendor {name:$name })
             SET vendor.euvdId=$vendorId
-            MERGE (euvd)-[:HAS_VENDOR]->(vendor)
+            CREATE (euvd)-[:HAS_VENDOR]->(vendor)
             """,
             id=elements["id"],
             vendorId=elements["vendorId"],
@@ -1372,7 +1372,7 @@ class CyberGraph:
     @staticmethod
     def _create_cve(tx, elements):
         tx.run("""
-            MERGE (cve:CVE { id:$id, publishedDate:$publishedDate, lastModifiedDate:$lastModifiedDate })
+            CREATE (cve:CVE { id:$id, publishedDate:$publishedDate, lastModifiedDate:$lastModifiedDate })
             SET cve.description=$description
             """,    
             id=elements["id"],
@@ -1394,8 +1394,8 @@ class CyberGraph:
     def _create_cve_related_cwe(tx, elements):
         tx.run("""
             MATCH (cve:CVE { id:$cveId })
-            MERGE (cwe:CWE { id:$cweId })
-            MERGE (cve)-[:HAS_WEAKNESS]->(cwe)
+            MATCH (cwe:CWE { id:$cweId })
+            CREATE (cve)-[:HAS_WEAKNESS]->(cwe)
             """, 
             cweId=elements["cweId"],
             cveId=elements["cveId"])
@@ -1404,8 +1404,8 @@ class CyberGraph:
     def _create_metric(tx, elements):
         tx.run('''
             MATCH (cve:CVE { id:$cveId })
-            MERGE (metric:Metric:'''+ elements["severity"] +''' { vector:$vector, baseScore:$baseScore })
-            MERGE (cve)-[:HAS_METRIC { exploitabilityScore:$exploitabilityScore, impactScore:$impactScore}]->(metric)
+            CREATE (metric:Metric:'''+ elements["severity"] +''' { vector:$vector, baseScore:$baseScore })
+            CREATE (cve)-[:HAS_METRIC { exploitabilityScore:$exploitabilityScore, impactScore:$impactScore}]->(metric)
             ''', 
             vector=elements["vector"],
             baseScore=elements["baseScore"],
@@ -1419,7 +1419,7 @@ class CyberGraph:
         tx.run("""
             MATCH (cve:CVE { id:$cveId })
             MERGE (ref:Reference { url:$url })
-            MERGE (cve)-[:HAS_LINK_TO]->(ref)
+            CREATE (cve)-[:HAS_LINK_TO]->(ref)
             """,
             url=elements["url"],
             cveId=elements["cveId"])
