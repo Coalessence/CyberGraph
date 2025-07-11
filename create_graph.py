@@ -1370,6 +1370,80 @@ class CyberGraph:
     # ==============================================
 
     @staticmethod
+    def _create_full_cve_graph(tx, elements):
+        # Dynamically construct the Cypher query
+        # Note: This assumes required nodes (CNA, CWE, Product etc.) already exist or can be created/merged
+
+        query = """
+        CREATE (cve:CVE { id:$id, publishedDate:$publishedDate, lastModifiedDate:$lastModifiedDate })
+        SET cve.description = $description
+
+        WITH cve
+        OPTIONAL MATCH (cna:CNA)-[:REACHABLE_BY_EMAIL]->(:ContactInfo { contact: $cnaEmail })
+        FOREACH (c IN CASE WHEN cna IS NOT NULL THEN [cna] ELSE [] END |
+            CREATE (cve)<-[:ASSIGNED]-(c)
+        )
+        
+        WITH cve
+        UNWIND $cweIds AS cweId
+        OPTIONAL MATCH (cwe:CWE { id: cweId })
+        FOREACH (c IN CASE WHEN cwe IS NOT NULL THEN [cwe] ELSE [] END |
+            CREATE (cve)-[:HAS_WEAKNESS]->(c)
+        )
+        
+        WITH cve
+        UNWIND $metrics AS metric
+        CREATE (m:Metric:"""+elements['severity']+""" {
+            vector: metric.vector,
+            baseScore: metric.baseScore
+        })
+        CREATE (cve)-[:HAS_METRIC {
+            exploitabilityScore: metric.exploitabilityScore,
+            impactScore: metric.impactScore
+        }]->(m)
+
+        WITH cve
+        FOREACH (ref IN $references | 
+        MERGE (r:Reference { url: ref.url })
+        CREATE (cve)-[:HAS_LINK_TO]->(r))
+        
+
+        WITH cve
+        UNWIND $vendors_products AS vp
+        MERGE (vendor:Vendor { name: vp.vendorName })
+        MERGE (product:Product { name: vp.productName, type: vp.productType })
+        MERGE (vendor)-[:OWN]->(product)
+        
+        WITH cve
+        UNWIND $versions AS version
+        MATCH (product:Product { name: version.productName })
+        CREATE (cve)-[:AFFECTS {
+            vulnerable: version.vulnerable,
+            cpe23Uri: version.cpe23Uri,
+            versionEndExcluding: version.versionEndExcluding,
+            versionStartIncluding: version.versionStartIncluding
+        }]->(product)
+        
+        RETURN cve.id as id
+        """
+
+        tx.run(query,
+               id=elements["id"],
+               description=elements["description"],
+               publishedDate=elements["publishedDate"],
+               lastModifiedDate=elements["lastModifiedDate"],
+               cnaEmail=elements["cnaEmail"],
+               cweIds=elements.get("cweIds", []),
+               metrics=elements.get("metrics", []),
+               references=elements.get("references", []),
+               products=elements.get("products", []))
+
+    def write_full_cve_graph(self, elements):
+        with self.driver.session(database=self.db) as session:
+            session.execute_write(self._create_full_cve_graph, elements)
+
+    
+    @staticmethod
     def _create_cve(tx, elements):
         tx.run("""
             CREATE (cve:CVE { id:$id, publishedDate:$publishedDate, lastModifiedDate:$lastModifiedDate })
@@ -1524,6 +1598,136 @@ class CyberGraph:
         self.driver.execute_query("""
             CREATE TEXT INDEX product_name IF NOT EXISTS FOR (prd:Product) ON (prd.name)
             """)
+        
+    def process_single_cve(self, cve):
+        """
+        Process a single CVE record and prepare all data for the comprehensive query
+        """
+        # Prepare basic CVE data
+        cve_data = {
+            "cve_id": cve["cve"]["id"],
+            "description": cve["cve"]["descriptions"][0]["value"],
+            "publishedDate": cve["cve"]["published"],
+            "lastModifiedDate": cve["cve"]["lastModified"],
+            "cnaEmail": cve["cve"]["sourceIdentifier"]
+        }
+        
+        # Prepare CWE data
+        cwe_ids = []
+        if "weaknesses" in cve["cve"]:
+            for cwe in cve["cve"]["weaknesses"]:
+                for description in cwe["description"]:
+                    if description["value"] not in ["NVD-CWE-noinfo", "NVD-CWE-Other"]:
+                        cwe_ids.append(description["value"].replace("CWE-", ""))
+        cve_data["cwe_ids"] = cwe_ids
+        
+        if "cvssMetricV3.1" in cve["cve"]["metrics"]:
+            metric = cve["cve"]["metrics"]["cvssMetricV3.1"][0]
+            metric_data = {
+                "vector": metric["cvssData"]["vectorString"].replace("CVSS:3.1/", ""),
+                "baseScore": metric["cvssData"]["baseScore"],
+                "exploitabilityScore": metric["exploitabilityScore"],
+                "impactScore": metric["impactScore"]
+            }
+            
+            severity = metric["cvssData"]["baseSeverity"].capitalize()
+            
+        elif "cvssMetricV3.0" in cve["cve"]["metrics"]:
+            metric = cve["cve"]["metrics"]["cvssMetricV3.0"][0]
+            metric_data = {
+                "vector": metric["cvssData"]["vectorString"].replace("CVSS:3.0/", ""),
+                "baseScore": metric["cvssData"]["baseScore"],
+                "exploitabilityScore": metric["exploitabilityScore"],
+                "impactScore": metric["impactScore"]
+            }
+            
+            severity = metric["cvssData"]["baseSeverity"].capitalize()  
+        elif "cvssMetricV2" in cve["cve"]["metrics"]:
+            metric = cve["cve"]["metrics"]["cvssMetricV2"][0]
+            metric_data = {
+                "vector": metric["cvssData"]["vectorString"],
+                "baseScore": metric["cvssData"]["baseScore"],
+                "exploitabilityScore": metric["exploitabilityScore"],
+                "impactScore": metric["impactScore"]
+            }
+            
+            severity = metric["baseSeverity"].capitalize()
+                    
+        
+        cve_data.update({
+            "metrics": [metric_data],
+            "severity": severity
+        })
+        
+        references = []
+        if "references" in cve["cve"]:
+            for ref in cve["cve"]["references"]:
+                references.append({"url": ref["url"]})
+        cve_data["references"] = references
+        
+        # Prepare vendors and products data
+        vendors_products = []
+        versions = []
+        
+        if "configurations" in cve["cve"]:
+            for configuration in cve["cve"]["configurations"]:
+                for node in configuration["nodes"]:
+                    processed_products = set()
+                    
+                    for cpe in node["cpeMatch"]:
+                        cpe_elements = cpe["criteria"].split(":")
+                        vendor_name = cpe_elements[3]
+                        product_name = cpe_elements[4]
+                        product_type = ("Application" if cpe_elements[2] == "a" 
+                                      else "Hardware" if cpe_elements[2] == "h" 
+                                      else "Operating Systems")
+                        
+                        # Add vendor/product if not already processed
+                        product_key = (vendor_name, product_name)
+                        if product_key not in processed_products:
+                            vendors_products.append({
+                                "vendorName": vendor_name,
+                                "productName": product_name,
+                                "productType": product_type
+                            })
+                            processed_products.add(product_key)
+                        
+                        # Add version information
+                        version_data = {
+                            "productName": product_name,
+                            "vulnerable": cpe["vulnerable"],
+                            "cpe23Uri": cpe["criteria"],
+                            "versionStartIncluding": (cpe.get("versionStartIncluding") or 
+                                                    (cpe_elements[5] if len(cpe_elements) > 5 else None)),
+                            "versionEndExcluding": cpe.get("versionEndExcluding")
+                        }
+                        versions.append(version_data)
+        
+        cve_data.update({
+            "vendors_products": vendors_products,
+            "versions": versions,
+        })
+        
+        return cve_data
+    
+    def handle_cve_optimized(self, source_filename):
+        """
+        Optimized CVE handler that processes each CVE with a single comprehensive query
+        """
+        with open(source_filename, mode="r", encoding='utf-8') as file:
+            # Create indexes first
+            self.create_cve_index()
+            self.create_product_index()
+            
+            data = json.load(file)
+            cve_count = len(data["vulnerabilities"])
+            
+            for idx, cve in enumerate(data["vulnerabilities"], 1):
+                self.printProgressBar(idx, cve_count, "CVE")
+                
+                cve_data = self.process_single_cve(cve)
+                
+                self.write_cve_comprehensive(cve_data)
 
     def handle_cve(self, source_filename):
         with open(source_filename, mode="r", encoding='utf-8') as file:
@@ -1557,16 +1761,7 @@ class CyberGraph:
                                     "cweId":description["value"].replace("CWE-",""),
                                     "cveId":cve["cve"]["id"]
                                 })
-                    
-                if "cvssMetricV30" in cve["cve"]["metrics"]:
-                    self.write_metric({
-                        "vector":cve["cve"]["metrics"]["cvssMetricV30"][0]["cvssData"]["vectorString"].replace("CVSS:3.0/",""),
-                        "baseScore":cve["cve"]["metrics"]["cvssMetricV30"][0]["cvssData"]["baseScore"],
-                        "severity":cve["cve"]["metrics"]["cvssMetricV30"][0]["cvssData"]["baseSeverity"].capitalize(),
-                        "exploitabilityScore":cve["cve"]["metrics"]["cvssMetricV30"][0]["exploitabilityScore"],
-                        "impactScore":cve["cve"]["metrics"]["cvssMetricV30"][0]["impactScore"],
-                        "cveId":cve["cve"]["id"]
-                    })
+                
                 if "cvssMetricV31" in cve["cve"]["metrics"]:
                     self.write_metric({
                         "vector":cve["cve"]["metrics"]["cvssMetricV31"][0]["cvssData"]["vectorString"].replace("CVSS:3.1/",""),
@@ -1576,6 +1771,25 @@ class CyberGraph:
                         "impactScore":cve["cve"]["metrics"]["cvssMetricV31"][0]["impactScore"],
                         "cveId":cve["cve"]["id"]
                     })
+                elif "cvssMetricV30" in cve["cve"]["metrics"]:
+                    self.write_metric({
+                        "vector":cve["cve"]["metrics"]["cvssMetricV30"][0]["cvssData"]["vectorString"].replace("CVSS:3.0/",""),
+                        "baseScore":cve["cve"]["metrics"]["cvssMetricV30"][0]["cvssData"]["baseScore"],
+                        "severity":cve["cve"]["metrics"]["cvssMetricV30"][0]["cvssData"]["baseSeverity"].capitalize(),
+                        "exploitabilityScore":cve["cve"]["metrics"]["cvssMetricV30"][0]["exploitabilityScore"],
+                        "impactScore":cve["cve"]["metrics"]["cvssMetricV30"][0]["impactScore"],
+                        "cveId":cve["cve"]["id"]
+                    })
+                elif "cvssMetricV2" in cve["cve"]["metrics"]:
+                    self.write_metric({
+                        "vector":cve["cve"]["metrics"]["cvssMetricV2"][0]["cvssData"]["vectorString"],
+                        "baseScore":cve["cve"]["metrics"]["cvssMetricV2"][0]["cvssData"]["baseScore"],
+                        "severity":cve["cve"]["metrics"]["cvssMetricV2"][0]["baseSeverity"].capitalize(),
+                        "exploitabilityScore":cve["cve"]["metrics"]["cvssMetricV2"][0]["exploitabilityScore"],
+                        "impactScore":cve["cve"]["metrics"]["cvssMetricV2"][0]["impactScore"],
+                        "cveId":cve["cve"]["id"]
+                    })
+                
                     
                 if "references" in cve["cve"]:
                     for ref in cve["cve"]["references"]:
