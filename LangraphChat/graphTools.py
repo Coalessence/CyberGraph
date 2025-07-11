@@ -750,5 +750,6 @@ tools = {
 generate_indexes()
 
 if __name__ == "__main__":
-    query= ['CVE-2001-0771', 'CVE-2001-1009', 'CVE-2000-0844', 'CVE-2000-0219', 'CVE-1999-0839', 'CVE-1999-0899', 'CVE-1999-0777', 'CVE-1999-0909', 'CVE-1999-1011', 'CVE-1999-0728', 'CVE-1999-0344', 'CVE-1999-0227', 'CVE-1999-0496', 'CVE-1999-1383']
-    print(get_multiple_cve_information({'cve':query}))
+    print("Graph schema parsed successfully.")
+    print("Available entities:", categories)
+    print("whole schema:", graph_schema)
