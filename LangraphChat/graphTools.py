@@ -676,8 +676,53 @@ def get_capec_cwe(
     data = graph.query(capec_cwe_base_query, params=params)
     return data
 
-
-graph_schema_txt=graph.get_schema
+def create_graph_schema():
+    
+    
+    #res=graph.query("""CALL apoc.meta.data();""")
+    
+    res=graph.query("""With {sample: -1} as config
+    CALL apoc.meta.schema(config)
+    YIELD value
+    UNWIND keys(value) AS key
+    RETURN key, value[key] AS value;""")
+    
+    nodes= {}
+    relationships = []
+    
+    for el in res:
+        match(el.get("value").get("type")):
+            case "node":
+                node={"properties": [], "realtionships": {}}
+                for name, _ in el.get("value").get("properties").items():
+                    node["properties"].append(name)
+                    
+                for key, value in el.get("value").get("relationships").items():
+                    relProp=[]
+                    labels = set(value.get("labels"))
+                    for propName, _ in value.get("properties").items():
+                        relProp.append(propName)
+                    rel={"connecting" : labels, "direction": value.get("direction"), "properties": relProp}
+                    for destination in labels:
+                        if value.get("direction") == "out":
+                            relationships.append((el.get("key"), key , destination))
+                    node["realtionships"][key] = rel
+                        
+                nodes[el.get("key")] = node
+            case _:
+                print("Unknown type")
+    
+    schema=""
+    schema+="Nodes: \n{"
+    for key, value in nodes.items():
+        schema+=f"{key}: {value},\n"
+    schema+="} \nRelationships: \n{"
+    for source, relationship, target in relationships:
+        schema+=f"{source} -[{relationship}]-> {target}\n"
+    schema+="}"
+    
+    return schema
+          
 
 def parse_graph_schema(schema_text: str):
     """
@@ -735,9 +780,14 @@ def get_entities_from_schema(graph_schema):
     
     return list(entities)
 
+
+graph_schema_txt=graph.get_schema
+
 graph_schema = parse_graph_schema(graph_schema_txt)
 
 categories = get_entities_from_schema(graph_schema)
+
+complete_graph_schema = create_graph_schema()
 
 tools = {
     "cve": [get_cve_product, get_cve_cwe, get_cve_description, get_cve_cna, get_cve_information, get_multiple_cve_information, get_most_recent_vulnerability, get_cve_epss, get_product_cve],
@@ -750,6 +800,4 @@ tools = {
 generate_indexes()
 
 if __name__ == "__main__":
-    print("Graph schema parsed successfully.")
-    print("Available entities:", categories)
-    print("whole schema:", graph_schema)
+    create_graph_schema()
