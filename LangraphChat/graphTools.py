@@ -677,8 +677,7 @@ def get_capec_cwe(
     return data
 
 def create_graph_schema():
-    
-    
+
     #res=graph.query("""CALL apoc.meta.data();""")
     
     res=graph.query("""With {sample: -1} as config
@@ -710,18 +709,18 @@ def create_graph_schema():
                         
                 nodes[el.get("key")] = node
             case _:
-                print("Unknown type")
+                None
     
-    schema=""
-    schema+="Nodes: \n{"
+    schema=''
+    schema+='Nodes: \n {'
     for key, value in nodes.items():
-        schema+=f"{key}: {value},\n"
-    schema+="} \nRelationships: \n{"
+        schema+=f'{key}: {value}, \n '
+    schema+='} \n Relationships: \n {' 
     for source, relationship, target in relationships:
-        schema+=f"{source} -[{relationship}]-> {target}\n"
-    schema+="}"
+        schema+=f'{source} -[{relationship}]-> {target} \n ' 
+    schema+='}'
     
-    return schema
+    return schema, nodes, relationships
           
 
 def parse_graph_schema(schema_text: str):
@@ -800,4 +799,5 @@ tools = {
 generate_indexes()
 
 if __name__ == "__main__":
-    create_graph_schema()
+    schema=create_graph_schema()
+    print(schema[0])

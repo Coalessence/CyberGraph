@@ -1,15 +1,13 @@
-import requests
-import math
 import os
 from mitreattack.stix20 import MitreAttackData
 from dotenv import load_dotenv
 from neo4j import GraphDatabase
-import time
 import csv
 import re
 import json
 import sys
 
+train_defaults = {}
 
 class CyberGraph:
 
@@ -243,6 +241,14 @@ class CyberGraph:
                         "cnaParentLink":cna["root"]["link_more_info"],
                         "cnaName":cna["name"]
                     })
+            
+            train_defaults["cna"]="name"
+            train_defaults["disclosurePolicy"]="link"
+            train_defaults["organizationType"]="type"
+            train_defaults["securityAdvisory"]="link"
+            train_defaults["contactInfo"]="contact"
+            train_defaults["country"]="name"
+            train_defaults["scope"]="description"
             
             print("")
 
@@ -642,6 +648,16 @@ class CyberGraph:
                             "cweId":cwe["CWE-ID"]
                         })
 
+            train_defaults["cwe"]="id"
+            train_defaults["alternativeTerm"]="name"
+            train_defaults["phase"]="name"
+            train_defaults["securityProperty"]="name"
+            train_defaults["impact"]="name"
+            train_defaults["detectionMethod"]="name"
+            train_defaults["functionalArea"]="name"
+            train_defaults["affectedResource"]="name"
+            
+            
             print("")
 
     # ==============================================
@@ -1031,7 +1047,10 @@ class CyberGraph:
                         })
                 
                 # No need to process the "Related Weaknesses" field (i.e. CWE) since it's already been done in the CWE part.
-
+            train_defaults["capec"]="id"
+            train_defaults["alternativeTerm"]="name"
+            
+            
             print("")
 
     # ==============================================
@@ -1174,6 +1193,8 @@ class CyberGraph:
                         "description": source["cweAcceptanceLevel"]["description"],
                         "lastModified": source["cweAcceptanceLevel"]["lastModified"]
                     })
+            
+            
             print("")
 
     # ==============================================
@@ -1236,7 +1257,8 @@ class CyberGraph:
                                     "ref": ref["ref"],
                                     "type": ref["type"]
                                 })
-                
+            
+            train_defaults["title"]="title"
             print("")
             
     # ==============================================
@@ -1362,7 +1384,10 @@ class CyberGraph:
                         "vendorId": vendor.get("id", ""),
                         "name": vendor.get("vendor").get("name", ""),
                     }) """
-                
+
+            
+            train_defaults["euvd"]="id"
+            print("")       
 
     
     # ==============================================
@@ -1946,6 +1971,13 @@ class CyberGraph:
                                             "versionEndExcluding": None
                                         })"""
 
+            
+            train_defaults["cve"]="id"
+            train_defaults["product"]="name"
+            train_defaults["vendor"]="name"
+            train_defaults["metric"]="vector"
+            train_defaults["reference"]="url"
+            
             print("")
 
     # ==============================================
@@ -2097,6 +2129,13 @@ class CyberGraph:
                     })
             print(f"* {attack_id} - used by {len(groups)} {'group' if len(groups) == 1 else 'groups'}")
         groups = mitre_attack_data.get_groups(remove_revoked_deprecated=True)
+        
+        train_defaults["group"]="name"
+        train_defaults["alias"]="name"
+        train_defaults["technique"]="id"
+        train_defaults["tactic"]="id"
+        train_defaults["threatActor"]="name"
+        
         print("** Analysis ended**")
 
 if __name__ == "__main__":
@@ -2109,11 +2148,11 @@ if __name__ == "__main__":
     cyberGraph = CyberGraph(neo4j_uri, neo4j_username, neo4j_password)
 
     cyberGraph.handle_cna("cna.json")
-    cyberGraph.handle_cwe("cwe.csv")
-    cyberGraph.handle_capec("capec.csv")
-    cyberGraph.handle_cve("dump.json")
-    cyberGraph.handle_epss("epss.csv")
-    cyberGraph.first_mitre_run("enterprise-attack.json")
+    #cyberGraph.handle_cwe("cwe.csv")
+    #cyberGraph.handle_capec("capec.csv")
+    #cyberGraph.handle_cve("dump.json")
+    #cyberGraph.handle_epss("epss.csv")
+    #cyberGraph.first_mitre_run("enterprise-attack.json")
     #cyberGraph.handle_sources("sources.json")
     #cyberGraph.handle_cpe("cpe.json")
     #cyberGraph.handle_euvd("euvd.json")
