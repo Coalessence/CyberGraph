@@ -89,6 +89,32 @@ def get_exact_candidate(input: str, type: str, key: str) -> Optional[str]:
     candidate = graph.query(exact_candidate_query, {"name": input})
     return candidate[0]["candidate"] if candidate else None
 
+
+def get_relationships(
+    entity: Annotated[str, "Entity name to find neighbors for."],
+    entity_type: Annotated[str, "Type of the entity (e.g., 'CVE', 'Product')."],
+):
+    """Retrieve neighboring entities and their relationships for a given entity."""
+    candidate_entity = get_exact_candidate(entity, entity_type, "name" if entity_type != "CVE" else "id")
+    if not candidate_entity:
+        return f"The mentioned {entity_type} was not found"
+
+    query = f"""
+    MATCH (e:{entity_type} {{ {'name' if entity_type != 'CVE' else 'id'}: $entity }})-[r]-(neighbor)
+    RETURN type(r) AS relationship, labels(neighbor)[0] AS neighbor_type, coalesce(neighbor.name, neighbor.id) AS neighbor_name
+    """
+    results = graph.query(query, {"entity": candidate_entity})
+
+    relationships = []
+    for record in results:
+        relationships.append({
+            "relationship": record["relationship"],
+            "neighbor_type": record["neighbor_type"],
+            "neighbor_name": record["neighbor_name"]
+        })
+
+    return relationships
+
 @tool
 def get_product_cve(
     product: Annotated[str, "Product mentioned in the question. Return None if no mentioned."]
@@ -283,7 +309,7 @@ def get_cve_cvss(
     params = {}
     filters = []
     cve_cvss_base_query = """
-    MATCH (c:CVE)-[:HAS_METRIC]->(m:CVSS)
+    MATCH (c:CVE)-[:HAS_METRIC]->(m:Metric)
     """
     if cve and isinstance(cve, str):
         candidate_cve = get_exact_candidate(cve, "CVE", "id")

@@ -146,6 +146,24 @@ class CyberGraph:
             cnaParentName=elements["cnaParentName"],
             cnaParentLink=elements["cnaParentLink"],
             cnaName=elements["cnaName"])
+        
+    @staticmethod
+    def _create_cna_metadata(tx):
+        tx.run("""
+        MERGE (cna:Entity {
+            label: 'CNA',
+            description: 'CVE Numbering Authority - organizations authorized to assign CVE IDs',
+            identifiers: ['name', 'link']
+            })
+            
+        MERGE (country:Entity {
+            label: 'Country',
+            description: 'Countries where CNAs are based',
+            identifiers: ['name']
+            })
+        
+        """)
+        
 
     def write_cna(self, elements):
         with self.driver.session(database=self.db) as session:
@@ -181,6 +199,10 @@ class CyberGraph:
             
     def write_cna_index(self):
         self.driver.execute_query("""CREATE INDEX cna_contact IF NOT EXISTS FOR (info:ContactInfo) ON (info.cnaEmail )""")
+        
+    def write_cna_metadata(self):
+        with self.driver.session(database=self.db) as session:
+            res = session.execute_write(self._create_cna_metadata)
 
     def handle_cna(self, source_filename):
         with open(source_filename, mode='r') as file:
@@ -242,13 +264,7 @@ class CyberGraph:
                         "cnaName":cna["name"]
                     })
             
-            train_defaults["cna"]="name"
-            train_defaults["disclosurePolicy"]="link"
-            train_defaults["organizationType"]="type"
-            train_defaults["securityAdvisory"]="link"
-            train_defaults["contactInfo"]="contact"
-            train_defaults["country"]="name"
-            train_defaults["scope"]="description"
+            self.write_cna_metadata()
             
             print("")
 
@@ -444,6 +460,41 @@ class CyberGraph:
             cweId=elements["cweId"])
 
 
+    @staticmethod
+    def _create_cwe_metadata(tx):
+        tx.run("""
+        MERGE (cwe:Entity {
+            label: 'CWE',
+            description: 'Common Weakness Enumeration - list of common software and hardware weaknesses ',
+            identifiers: ['id', 'name', 'link']
+            })
+        
+        MERGE (alternativeTerm:Entity {
+            label: 'Alternative Term',
+            description: 'Alternative name for a CWE entry',
+            identifiers: ['name']
+            })
+            
+        MERGE (phase:Entity {
+            label: 'Phase',
+            description: 'Phases during which a weakness can be introduced',
+            identifiers: ['name']
+            })
+        
+        MERGE (securityProperty:Entity {
+            label: 'Security Property',
+            description: 'Security properties affected by weaknesses',
+            identifiers: ['name']
+            })
+
+        MERGE (mitigation:Entity {
+            label: 'Mitigation',
+            description: 'Mitigation strategies for weaknesses against attacks',
+            identifiers: []
+            })
+            
+        """)
+    
     def write_cwe(self, elements):
         with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_cwe, elements)
@@ -1515,13 +1566,21 @@ class CyberGraph:
     @staticmethod
     def _create_reference(tx, elements):
         # MATCH (ref:Reference:''' + elements["tags"] + ''') WHERE SIZE(LABELS(ref)) = $countLabels
+        source=elements.get("source","")
+        if source:
+            source_clause = " SET ref.source=$source "
+        else:
+            source_clause = ""
+        
         tx.run("""
             MATCH (cve:CVE { id:$cveId })
             MERGE (ref:Reference { url:$url })
+            """ + source_clause + """
             CREATE (cve)-[:HAS_LINK_TO]->(ref)
             """,
             url=elements["url"],
-            cveId=elements["cveId"])
+            cveId=elements["cveId"],
+            source=elements.get("source",""))
 
     @staticmethod
     def _create_vendor_and_product(tx, elements):
@@ -1826,6 +1885,7 @@ class CyberGraph:
                         self.write_reference({
                             "labels":":Reference" + additionalLabels,
                             "url":ref["url"],
+                            "source": ref.get("source", ""),
                             "cveId":cve["cve"]["id"]
                         })
                 # TODO - Possible integration with https://nvd.nist.gov/developers/products

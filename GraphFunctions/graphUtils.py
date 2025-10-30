@@ -62,7 +62,7 @@ print("Graph functions loaded")
 
 if __name__ == "__main__":
     s,n, r = create_graph_schema(getGraphConnection("bolt://localhost:7687", "neo4j", "password"), "neo4j")
-    print(s)
+    print(n)
     #print only s to a json file, s is a string
     with open("graph_schema.txt", "w") as f:
         f.write(s)    

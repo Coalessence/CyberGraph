@@ -55,17 +55,19 @@ def extract_entities(question):
     temp=[]
     
     for token in doc:
-        print(f"Token: {token.text}, POS: {token.pos_}, DEP: {token.dep_}")
-        
-        if token.pos_ in ["NOUN", "NUM", "PROPN"]:
-            if token.dep_ in ["nsubj", "pobj", "dobj"]:
-                
-                compounds = find_compound(token)
-                
-                if compounds:
-                    temp.append(" ".join(compounds + [token.text]))
-                else:
-                    temp.append(token.text)
+        if not token.is_stop:
+            print(f"Token: {token.text}, POS: {token.pos_}, DEP: {token.dep_}")
+            
+            if token.pos_ in ["NOUN", "NUM", "PROPN"]:
+                if token.dep_ in ["nsubj", "pobj", "dobj"]:
+                    
+                    compounds = find_compound(token)
+                    
+                    if compounds:
+                        temp.append(" ".join(compounds + [token.text]))
+                    else:
+                        temp.append(token.text)
+                    
 
     
     #for each entity in temp check if it is already in entities, if not check if contains any entity in entities, if so split it and add the parts to entities
@@ -138,14 +140,14 @@ def llm_classification(question):
         entities = {}
     return entities
 
-q="What is CVE-2021-44228 description?"
-print(extract_entities(q))
-
 q = "What is the common attack pattern related to CVE with high CVSS?"
 print(extract_entities(q))
-q = "What are the vulnerabilities of OpenCV?"
+q = """As I recently read in a security blog:
+“The tool allows the threat actors to
+extract emails from Yahoo!, Google,
+and Microsoft Outlook... Which
+MITRE ATT&CK technique category
+does this behavior map to?"""
 print(extract_entities(q))
-q = "List the products affected by CVE-2021-44228"
-print(extract_entities(q))
-q = "What are the defense mechanisms against attack pattern CAPEC-31"
+q = "What are the parent attack pattern of CAPEC-31"
 print(extract_entities(q))
