@@ -647,6 +647,14 @@ class CNA:
         # This option force to not physically open a browser tab
         options = Options()
         options.add_argument("--headless")
+        options.add_argument("--no-sandbox")  # Bypass OS security model, required on Linux
+        options.add_argument("--disable-dev-shm-usage")  # Overcome limited resource problems
+        options.add_argument("--disable-gpu")  # Disable GPU hardware acceleration
+        options.add_argument("--disable-software-rasterizer")
+        options.add_argument("--disable-extensions")
+        options.add_argument("--window-size=1920,1080")
+        options.add_argument("--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        
 
         driver = webdriver.Chrome(service=Service(executable_path=ChromeDriverManager().install()), options=options)
         driver2 = webdriver.Chrome(service=Service(executable_path=ChromeDriverManager().install()), options=options)

@@ -1861,7 +1861,7 @@ class CyberGraph:
                     "baseScore": metric["cvssData"]["baseScore"],
                     "exploitabilityScore": metric["exploitabilityScore"],
                     "impactScore": metric["impactScore"],
-                    "severity": metric["cvssData"]["baseSeverity"].capitalize()
+                    "severity": metric["baseSeverity"].capitalize()
                 })
                     
         
