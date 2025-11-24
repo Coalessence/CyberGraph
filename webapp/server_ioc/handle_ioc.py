@@ -84,7 +84,7 @@ class IoCGraph:
     def _create_DOMAINS(tx, elements):
         tx.run("""
             MATCH (x:IP { ip:$ip_address })
-            MATCH (y:DOMAIN { domain:$domain})
+            MATCH (y:Domain { domain:$domain})
             MERGE (x)-[:HAS_DOMAIN]->(y)
             """,
             domain=elements["domains"],
@@ -101,7 +101,7 @@ class IoCGraph:
                 OPTIONAL MATCH (ip_address)-[:HAS_ORGANIZATION]->(org:IP_Organization)
                 OPTIONAL MATCH (ip_address)-[:HAS_ISP]->(ispp:IP_ISP)
                 OPTIONAL MATCH (ip_address)-[:HAS_ASN]->(asnn:IP_ASN)
-                OPTIONAL MATCH (ip_address)-[:HAS_DOMAIN]->(domainn:DOMAIN)
+                OPTIONAL MATCH (ip_address)-[:HAS_DOMAIN]->(domainn:Domain)
                 RETURN ip_address.ip AS ip, ip_address.is_public AS is_public, ip_address.version AS ip_version, reputation.last_reported AS last_reported, reputation.number_of_reports AS number_of_reports, reputation.score AS score, location.country_city AS country_city, location.country_code AS country_code, location.country_name AS country_name, location.latitude AS latitude, location.longitude AS longitude, org.organization AS organization, org.usage_type AS usage_type, ispp.isp AS ISP, asnn.asn AS ASN, collect(distinct(domainn.domain)) AS domains
                 """,
                 address=value
@@ -207,7 +207,7 @@ class IoCGraph:
     
     @staticmethod
     def _create_DOMAIN_(tx, elements):
-        tx.run("MERGE (x:DOMAIN { domain:$domain, organization:$organization})", 
+        tx.run("MERGE (x:Domain { domain:$domain, organization:$organization})", 
             domain=elements["domain"],
             organization=elements["organization"])
     
@@ -215,16 +215,16 @@ class IoCGraph:
         with self.driver.session() as session:
             result = session.run(
                 """
-                MATCH (domain_info:DOMAIN)
+                MATCH (domain_info:Domain)
                 WHERE domain_info.domain=$address
                 MATCH (domain_info)-[:HAS_IP]->(ip_address:IP)
                 OPTIONAL MATCH (domain_info)-[:HAS_DNS_RECORD]->(dns_rec:DNS_RECORD)
-                MATCH (domain_info)-[:HAS_REPUTATION]->(score_rep:DOMAIN_REPUTATION)
-                OPTIONAL MATCH (domain_info)-[:HAS_HOSTNAME]->(hostnames:HOSTNAME)
+                MATCH (domain_info)-[:HAS_REPUTATION]->(score_rep:DomainReputation)
+                OPTIONAL MATCH (domain_info)-[:HAS_HOSTNAME]->(hostnames:Hostname)
                 OPTIONAL MATCH (domain_info)-[:HAS_VULN]->(cves:CVE)
-                OPTIONAL MATCH (domain_info)-[:HAS_OPEN_PORT]->(ports:PORTS)
-                OPTIONAL MATCH (domain_info)-[:HAS_PRODUCT]->(prod:PRODUCTS)
-                OPTIONAL MATCH (domain_info)-[:HAS_SUBDOMAIN]->(dom:SUBDOMAIN)
+                OPTIONAL MATCH (domain_info)-[:HAS_OPEN_PORT]->(ports:Port)
+                OPTIONAL MATCH (domain_info)-[:HAS_PRODUCT]->(prod:Product)
+                OPTIONAL MATCH (domain_info)-[:HAS_SUBDOMAIN]->(dom:Subdomain)
                 RETURN distinct(domain_info.domain) AS domain, domain_info.organization AS organization, ip_address.ip AS ipv4, collect(distinct({ key: dns_rec.key, value: dns_rec.value })) AS dns_rec, score_rep.score AS reputation, collect(distinct(hostnames.hostname)) AS hostnames, collect(distinct({id : cves.id, description: cves.description, url : 'https://nvd.nist.gov/vuln/detail/'+cves.id })) AS vulnerabilities, collect(distinct(ports.port)) AS ports, collect(distinct(prod.name)) AS products, collect(distinct(dom.domain)) AS subdomains
                 """,
                 address=value
@@ -235,7 +235,7 @@ class IoCGraph:
                     
                     result2 = session.run(
                         """
-                        MATCH (domain_info:DOMAIN)
+                        MATCH (domain_info:Domain)
                         WHERE domain_info.domain=$address
                         MATCH (domain_info)-[:HAS_VULN]->(cves:CVE)
                         OPTIONAL MATCH (cves)-[:HAS_EPSS]->(epss:EPSS)
@@ -278,7 +278,7 @@ class IoCGraph:
     @staticmethod
     def _create_IP_DOMAIN(tx, elements):
         tx.run("""
-            MATCH (x:DOMAIN { domain:$domain })
+            MATCH (x:Domain { domain:$domain })
             MATCH (y:IP { ip:$ipp})
             MERGE (x)-[:HAS_IP]->(y)
             """,
@@ -292,7 +292,7 @@ class IoCGraph:
             for item2 in keys:
                 for item3 in item.get(item2):
                     tx.run("""
-                        MATCH (x:DOMAIN { domain:$domain })
+                        MATCH (x:Domain { domain:$domain })
                         MERGE (y:DNS_RECORD { key:$key, value:$value})
                         MERGE (x)-[:HAS_DNS_RECORD]->(y)
                         """,
@@ -303,8 +303,8 @@ class IoCGraph:
     @staticmethod
     def _create_domain_reputation(tx, elements):
         tx.run("""
-            MATCH (x:DOMAIN { domain:$domain })
-            MERGE (y:DOMAIN_REPUTATION { score:$score})
+            MATCH (x:Domain { domain:$domain })
+            MERGE (y:DomainReputation { score:$score})
             MERGE (x)-[:HAS_REPUTATION]->(y)
             """,
             score=elements["reputation"], 
@@ -314,8 +314,8 @@ class IoCGraph:
     def _create_hostnames(tx, elements):
         for item in elements.get('hostnames'):
             tx.run("""
-                MATCH (x:DOMAIN { domain:$domain })
-                MERGE (y:HOSTNAME { hostname:$hostname})
+                MATCH (x:Domain { domain:$domain })
+                MERGE (y:Hostname { hostname:$hostname})
                 MERGE (x)-[:HAS_HOSTNAME]->(y)
                 """,
                 domain=elements["domain"],
@@ -333,7 +333,7 @@ class IoCGraph:
             record = res.single()
             if record.get('occurences') == 1:
                 tx.run("""
-                    MATCH (x:DOMAIN { domain:$domain })
+                    MATCH (x:Domain { domain:$domain })
                     MERGE (y:CVE { id:$id})
                     MERGE (x)-[:HAS_VULN]->(y)
                     """
@@ -342,7 +342,7 @@ class IoCGraph:
                     id=item)
             elif record.get('occurences') == 0:
                 tx.run("""
-                    MATCH (x:DOMAIN { domain:$domain })
+                    MATCH (x:Domain { domain:$domain })
                     CREATE (y:CVE { id:$id, description:"N/A", lastModifiedDate:"N/A", publishedDate:"N/A"})
                     MERGE (x)-[:HAS_VULN]->(y)
                     """
@@ -357,8 +357,8 @@ class IoCGraph:
     def _create_ports(tx, elements):
         for item in elements.get('ports'):
             tx.run("""
-                MATCH (x:DOMAIN { domain:$domain })
-                MERGE (y:PORTS { port:$port})
+                MATCH (x:Domain { domain:$domain })
+                MERGE (y:Port { port:$port})
                 MERGE (x)-[:HAS_OPEN_PORT]->(y)
                 """,
                 domain=elements["domain"],
@@ -368,8 +368,8 @@ class IoCGraph:
     def _create_products(tx, elements):
         for item in elements.get('products'):
             tx.run("""
-                MATCH (x:DOMAIN { domain:$domain })
-                MERGE (y:PRODUCTS { name:$product})
+                MATCH (x:Domain { domain:$domain })
+                MERGE (y:Product { name:$product})
                 MERGE (x)-[:HAS_PRODUCT]->(y)
                 """,
                 domain=elements["domain"],
@@ -381,8 +381,8 @@ class IoCGraph:
             if len(item) > 0:
                 for item2 in item.get('subdomains'):
                     tx.run("""
-                        MATCH (x:DOMAIN { domain:$domain })
-                        MERGE (y:SUBDOMAIN { domain:$subdomain})
+                        MATCH (x:Domain { domain:$domain })
+                        MERGE (y:Subdomain { domain:$subdomain})
                         MERGE (x)-[:HAS_SUBDOMAIN]->(y)
                         """,
                         domain=elements["domain"],

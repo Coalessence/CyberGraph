@@ -6,6 +6,7 @@ import csv
 import re
 import json
 import sys
+import time
 
 train_defaults = {}
 
@@ -77,7 +78,8 @@ class CyberGraph:
     def _create_disclosure_policy(tx, elements):
         tx.run("""
             MATCH (cna:CNA { name:$cnaName })
-            MERGE (dp:DisclosurePolicy { link:$link, description:$description })
+            MERGE (dp:DisclosurePolicy { link:$link })
+            SET dp.description = $description
             MERGE (cna)-[:HAS_DISCLOSURE_POLICY]->(dp)
             """, 
             link=elements["link"],
@@ -98,7 +100,8 @@ class CyberGraph:
     def _create_security_advisory(tx, elements):
         tx.run("""
             MATCH (cna:CNA { name:$cnaName })
-            MERGE (sa:SecurityAdvisory { link:$link, description:$description })
+            MERGE (sa:SecurityAdvisory { link:$link})
+            SET sa.description = $description
             MERGE (cna)-[:HAS_SECURITY_ADVISORY]->(sa)
             """, 
             link=elements["link"],
@@ -109,7 +112,8 @@ class CyberGraph:
     def _create_contact_info(tx, elements):
         tx.run("""
             MATCH (cna:CNA { name:$cnaName })
-            MERGE (contact:ContactInfo:"""+ elements["additionalLabel"] +""" { contact:$contact, description:$description })
+            MERGE (contact:ContactInfo:"""+ elements["additionalLabel"] +""" { contact:$contact})
+            SET contact.description = $description
             MERGE (cna)-[:"""+ elements["relationship"] +"""]->(contact)
             """, 
             contact=elements["contact"],
@@ -140,7 +144,8 @@ class CyberGraph:
     def _create_cna_parent(tx, elements):
         tx.run("""
             MATCH (cna:CNA { name:$cnaName })
-            MERGE (parentCNA:CNA { name:$cnaParentName, link:$cnaParentLink })
+            MERGE (parentCNA:CNA { name:$cnaParentName })
+            SET parentCNA.link = $cnaParentLink
             MERGE (cna)<-[:OWNS_ORGANIZATION]-(parentCNA)
             """, 
             cnaParentName=elements["cnaParentName"],
@@ -312,7 +317,8 @@ class CyberGraph:
     def _create_weakness_ordinality(tx, elements):
         tx.run("""
             MATCH (cwe:CWE { id:$cweId })
-            MERGE (weaknessOrdinality:WeaknessOrdinality { type:$type, description:$description })
+            MERGE (weaknessOrdinality:WeaknessOrdinality { type:$type})
+            SET weaknessOrdinality.description = $description
             MERGE (cwe)-[r:HAS_WEAKNESS_ORDINALITY]->(weaknessOrdinality)
             SET r.description = $customDescription
             """, 
@@ -884,6 +890,18 @@ class CyberGraph:
             relatedCapecId=elements["relatedCapecId"],
             direction=elements["direction"],
             capecId=elements["capecId"])
+        
+    @staticmethod
+    def _create_capec_related_TTP(tx, elements):
+        tx.run("""
+            MATCH (capec:CAPEC { id:$capecId })
+            MERGE (tec:AdversaryTechnique { id:$techniqueId})
+            set tec.name=$techniqueName
+            MERGE (capec)-[:HAS_ATTACK_TECHNIQUE]->(tec)
+            """,
+            techniqueId=elements["techniqueId"],
+            capecId=elements["capecId"],
+            techniqueName=elements["techniqueName"])
 
     def write_capec(self, elements):
         with self.driver.session(database=self.db) as session:
@@ -945,6 +963,10 @@ class CyberGraph:
         with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_capec_related_capec, elements)
     
+    def write_capec_related_TTP(self, elements):
+        with self.driver.session(database=self.db) as session:
+            res = session.execute_write(self._create_capec_related_TTP, elements)
+    
     def create_capec_index(self):
         self.driver.execute_query("""
             CREATE INDEX capec_id IF NOT EXISTS FOR (capec:CAPEC) ON (capec.id)
@@ -956,6 +978,8 @@ class CyberGraph:
         skill_regex = re.compile("^SKILL:(.*?)(?::LEVEL:(.*))?$")
         capec_consequence_regex = re.compile("^(?:SCOPE:(.*?))?(?:TECHNICAL IMPACT:(.*?))?(?::NOTE:(.*))?$")
         related_capec_regex = re.compile("^NATURE:(.*?):CAPEC ID:(.*)$")
+        related_technique_regex = re.compile("TAXONOMY NAME:ATTACK:ENTRY ID:([^:]+):ENTRY NAME:(.+)")
+
 
         # Creating the indexes for the CAPEC nodes
         self.create_capec_index()
@@ -1096,6 +1120,17 @@ class CyberGraph:
                             "direction":self.relationship[sup.group(1)]["direction"],
                             "capecId":capec["'ID"]
                         })
+                if capec["Taxonomy Mappings"]:
+                    for mapping in [elem for elem in capec["Taxonomy Mappings"].split("::") if elem]:
+                        if 'TAXONOMY NAME:ATTACK' in mapping:
+                            tec = related_technique_regex.search(mapping)
+                            self.write_capec_related_TTP({
+                                "techniqueId":"T"+tec.group(1),
+                                "capecId":capec["'ID"],
+                                "techniqueName":tec.group(2)
+                            })
+                            
+                        
                 
                 # No need to process the "Related Weaknesses" field (i.e. CWE) since it's already been done in the CWE part.
             train_defaults["capec"]="id"
@@ -1125,7 +1160,7 @@ class CyberGraph:
     def _create_epss(tx, elements):
         tx.run("""
                MATCH (cve:CVE { id:$cveId })
-               MERGE (epss:EPSS { probability:$probability, percentile:$percentile})
+               CREATE (epss:EPSS { probability:$probability, percentile:$percentile})
                MERGE (cve)-[:HAS_EPSS]->(epss)
                """,
                cveId=elements["cveId"],
@@ -1319,8 +1354,8 @@ class CyberGraph:
     @staticmethod
     def _create_euvd(tx, elements):
         tx.run("""
-            MERGE (euvd:EUVD { id:$id, datePublished:$datePublished, dateUpdated:$dateUpdated })
-            SET euvd.description=$description
+            MERGE (euvd:EUVD { id:$id })
+            SET euvd+={description:$description, datePublished:$datePublished, dateUpdated:$dateUpdated}
             """,    
             id=elements["id"],
             description=elements["description"],
@@ -1341,7 +1376,7 @@ class CyberGraph:
         tx.run("""
             MATCH (euvd:EUVD { id:$id })
             MATCH (cve:CVE { id:$alias })
-            CREATE (euvd)-[:HAS_CVE_RELATED]->(cve)
+            MERGE (euvd)-[:HAS_CVE_RELATED]->(cve)
             """,
             id=elements["id"],
             alias=elements["alias"])
@@ -1445,49 +1480,13 @@ class CyberGraph:
     # =============== HANDLE CVE ===================
     # ==============================================
 
-    @staticmethod
-    def _create_full_cve_graph(tx, elements):
-        # Dynamically construct the Cypher query
-        # Note: This assumes required nodes (CNA, CWE, Product etc.) already exist or can be created/merged
-
-        query = """
-        CREATE (cve:CVE { id:$id, publishedDate:$publishedDate, lastModifiedDate:$lastModifiedDate })
-        SET cve.description = $description
-
-        WITH cve
-        OPTIONAL MATCH (cna:CNA)-[:REACHABLE_BY_EMAIL]->(:ContactInfo { contact: $cnaEmail })
-        FOREACH (c IN CASE WHEN cna IS NOT NULL THEN [cna] ELSE [] END |
-            CREATE (cve)<-[:ASSIGNED]-(c)
-        )
-        
-        WITH cve
-        UNWIND $cweIds AS cweId
-        OPTIONAL MATCH (cwe:CWE { id: cweId })
-        FOREACH (c IN CASE WHEN cwe IS NOT NULL THEN [cwe] ELSE [] END |
-            CREATE (cve)-[:HAS_WEAKNESS]->(c)
-        )
-        
-        WITH cve
-        UNWIND $metrics AS metric
-        CREATE (m:Metric:"""+elements['severity']+""" {
-            vector: metric.vector,
-            baseScore: metric.baseScore
-        })
-        CREATE (cve)-[:HAS_METRIC {
-            exploitabilityScore: metric.exploitabilityScore,
-            impactScore: metric.impactScore
-        }]->(m)
-
-        WITH cve
-        FOREACH (ref IN $references | 
-        MERGE (r:Reference { url: ref.url })
-        CREATE (cve)-[:HAS_LINK_TO]->(r))
-        
-
-        WITH cve
+    """
+    Old vendorproduct and version handling code kept for reference
+    WITH cve
         UNWIND $vendors_products AS vp
         MERGE (vendor:Vendor { name: vp.vendorName })
-        MERGE (product:Product { name: vp.productName, type: vp.productType })
+        MERGE (product:Product { name: vp.productName })
+        ON CREATE SET product.type = vp.productType
         MERGE (vendor)-[:OWN]->(product)
         
         WITH cve
@@ -1498,7 +1497,62 @@ class CyberGraph:
             cpe23Uri: version.cpe23Uri,
             versionEndExcluding: version.versionEndExcluding,
             versionStartIncluding: version.versionStartIncluding
-        }]->(product)
+        }]->(product)"""
+    
+    @staticmethod
+    def _create_full_cve_graph(tx, elements):
+        # Dynamically construct the Cypher query
+        # Note: This assumes required nodes (CNA, CWE, Product etc.) already exist or can be created/merged
+
+        query = """
+        CREATE (cve:CVE { id:$id })
+        SET cve +={description:$description, publishedDate:$publishedDate, lastModifiedDate:$lastModifiedDate}
+
+        WITH cve
+        OPTIONAL MATCH (cna:CNA)-[:REACHABLE_BY_EMAIL]->(:ContactInfo { contact: $cnaEmail })
+        FOREACH (c IN CASE WHEN cna IS NOT NULL THEN [cna] ELSE [] END |
+            CREATE (cve)<-[:ASSIGNED]-(c)
+        )
+        
+        WITH DISTINCT cve
+        UNWIND CASE WHEN size($cweIds) > 0 THEN $cweIds ELSE [null] END AS cweId
+        OPTIONAL MATCH (cwe:CWE { id: cweId })
+        FOREACH (c IN CASE WHEN cwe IS NOT NULL THEN [cwe] ELSE [] END |
+            CREATE (cve)-[:HAS_WEAKNESS]->(c)
+        )
+        
+        WITH DISTINCT cve
+        FOREACH (metric in $metrics |
+            CREATE (m:Metric {
+                vector: metric.vector,
+                baseScore: metric.baseScore
+            })
+            SET m:$(metric.severity)
+            CREATE (cve)-[:HAS_METRIC {
+                exploitabilityScore: metric.exploitabilityScore,
+                impactScore: metric.impactScore
+            }]->(m)
+        )
+        
+        WITH DISTINCT cve
+        FOREACH (r in $references |
+            MERGE (reference:Reference { url: r.url })
+            CREATE (cve)-[:HAS_LINK_TO]->(reference)
+        )
+        
+        WITH DISTINCT cve
+        FOREACH (v in $vendors_products |
+            MERGE (vendor:Vendor { name: v.vendorName })
+            MERGE (product:Product { name: v.productName })
+            ON CREATE SET product.type = v.productType
+            MERGE (vendor)-[:OWN]->(product)
+            CREATE (cve)-[:AFFECTS {
+            vulnerable: v.vulnerable,
+            cpe23Uri: v.cpe23Uri,
+            versionEndExcluding: v.versionEndExcluding,
+            versionStartIncluding: v.versionStartIncluding
+            }]->(product)
+        )
         
         RETURN cve.id as id
         """
@@ -1512,18 +1566,74 @@ class CyberGraph:
                cweIds=elements.get("cweIds", []),
                metrics=elements.get("metrics", []),
                references=elements.get("references", []),
-               products=elements.get("products", []))
+               vendors_products=elements.get("vendors_products", []),
+               versions=elements.get("versions", []))
 
-    def write_full_cve_graph(self, elements):
-        with self.driver.session(database=self.db) as session:
-            session.execute_write(self._create_full_cve_graph, elements)
+    @staticmethod
+    def _create_full_cve_graph_batch(tx, elements):
+        query = """
+        UNWIND $cveList AS elements
+        CREATE (cve:CVE { id:elements.id })
+        SET cve +={description:elements.description, publishedDate:elements.publishedDate, lastModifiedDate:elements.lastModifiedDate}
 
-    
+        WITH cve, elements
+        OPTIONAL MATCH (cna:CNA)-[:REACHABLE_BY_EMAIL]->(:ContactInfo { contact: elements.cnaEmail })
+        FOREACH (c IN CASE WHEN cna IS NOT NULL THEN [cna] ELSE [] END |
+            CREATE (cve)<-[:ASSIGNED]-(c)
+        )
+        
+        WITH DISTINCT cve, elements
+        UNWIND CASE WHEN size(elements.cweIds) > 0 THEN elements.cweIds ELSE [null] END AS cweId
+        OPTIONAL MATCH (cwe:CWE { id: cweId })
+        FOREACH (c IN CASE WHEN cwe IS NOT NULL THEN [cwe] ELSE [] END |
+            CREATE (cve)-[:HAS_WEAKNESS]->(c)
+        )
+        
+        WITH DISTINCT cve, elements
+        FOREACH (metric in elements.metrics |
+            CREATE (m:Metric {
+                vector: metric.vector,
+                baseScore: metric.baseScore
+            })
+            SET m:$(metric.severity)
+            CREATE (cve)-[:HAS_METRIC {
+                exploitabilityScore: metric.exploitabilityScore,
+                impactScore: metric.impactScore
+            }]->(m)
+        )
+        
+        WITH DISTINCT cve, elements
+        FOREACH (r in elements.references |
+            MERGE (reference:Reference { url: r.url })
+            CREATE (cve)-[:HAS_LINK_TO]->(reference)
+        )
+        
+        WITH DISTINCT cve, elements
+        FOREACH (v in elements.vendors_products |
+            MERGE (vendor:Vendor { name: v.vendorName })
+            MERGE (product:Product { name: v.productName })
+            ON CREATE SET product.type = v.productType
+            MERGE (vendor)-[:OWN]->(product)
+            CREATE (cve)-[:AFFECTS {
+            vulnerable: v.vulnerable,
+            cpe23Uri: v.cpe23Uri,
+            versionEndExcluding: v.versionEndExcluding,
+            versionStartIncluding: v.versionStartIncluding
+            }]->(product)
+        )
+        
+        RETURN cve.id as id
+        """
+        
+        tx.run(query,
+               cveList=elements)
+        
+
     @staticmethod
     def _create_cve(tx, elements):
         tx.run("""
-            CREATE (cve:CVE { id:$id, publishedDate:$publishedDate, lastModifiedDate:$lastModifiedDate })
-            SET cve.description=$description
+            CREATE (cve:CVE { id:$id })
+            SET cve+= {description:$description , publishedDate:$publishedDate, lastModifiedDate:$lastModifiedDate}
             """,    
             id=elements["id"],
             description=elements["description"],
@@ -1545,7 +1655,7 @@ class CyberGraph:
         tx.run("""
             MATCH (cve:CVE { id:$cveId })
             MATCH (cwe:CWE { id:$cweId })
-            CREATE (cve)-[:HAS_WEAKNESS]->(cwe)
+            MERGE (cve)-[:HAS_WEAKNESS]->(cwe)
             """, 
             cweId=elements["cweId"],
             cveId=elements["cveId"])
@@ -1586,7 +1696,8 @@ class CyberGraph:
     def _create_vendor_and_product(tx, elements):
         tx.run('''
             MERGE (vnd:Vendor { name:$vendorName } )
-            MERGE (prd:Product { name:$productName, type:$productType } )
+            MERGE (prd:Product { name:$productName } )
+            SET prd.type=$productType
             MERGE (vnd)-[:OWN]->(prd)
             ''',
             vendorName=elements["vendorName"],
@@ -1672,7 +1783,14 @@ class CyberGraph:
         with self.driver.session(database=self.db) as session:
             res= session.execute_write(self._create_hyperedge, elements)
     
-            
+    def write_cve_comprehensive(self, elements):
+        with self.driver.session(database=self.db) as session:
+            session.execute_write(self._create_full_cve_graph, elements)
+    
+    def write_cve_batch_comprehensive(self, elements):
+        with self.driver.session(database=self.db) as session:
+            session.execute_write(self._create_full_cve_graph_batch, elements)
+    
     def create_cve_index(self):
         self.driver.execute_query("""
             CREATE TEXT INDEX cve_id IF NOT EXISTS FOR (cve:CVE) ON (cve.id)
@@ -1682,77 +1800,84 @@ class CyberGraph:
         self.driver.execute_query("""
             CREATE TEXT INDEX product_name IF NOT EXISTS FOR (prd:Product) ON (prd.name)
             """)
+        self.driver.execute_query("""
+            CREATE TEXT INDEX vendor_name IF NOT EXISTS FOR (vnd:Vendor) ON (vnd.name)
+            """)
+        
+        
+    def create_reference_index(self):
+        self.driver.execute_query("""
+            CREATE TEXT INDEX reference_url IF NOT EXISTS FOR (ref:Reference) ON (ref.url)
+            """)
         
     def process_single_cve(self, cve):
         """
         Process a single CVE record and prepare all data for the comprehensive query
         """
-        # Prepare basic CVE data
         cve_data = {
-            "cve_id": cve["cve"]["id"],
+            "id": cve["cve"]["id"],
             "description": cve["cve"]["descriptions"][0]["value"],
             "publishedDate": cve["cve"]["published"],
             "lastModifiedDate": cve["cve"]["lastModified"],
             "cnaEmail": cve["cve"]["sourceIdentifier"]
         }
         
+        metric_data = []
         # Prepare CWE data
-        cwe_ids = []
+        cweIds = set()
         if "weaknesses" in cve["cve"]:
             for cwe in cve["cve"]["weaknesses"]:
                 for description in cwe["description"]:
                     if description["value"] not in ["NVD-CWE-noinfo", "NVD-CWE-Other"]:
-                        cwe_ids.append(description["value"].replace("CWE-", ""))
-        cve_data["cwe_ids"] = cwe_ids
+                        cweIds.add(description["value"].replace("CWE-", ""))
+        cve_data["cweIds"] = list(cweIds)
         
-        if "cvssMetricV3.1" in cve["cve"]["metrics"]:
-            metric = cve["cve"]["metrics"]["cvssMetricV3.1"][0]
-            metric_data = {
-                "vector": metric["cvssData"]["vectorString"].replace("CVSS:3.1/", ""),
-                "baseScore": metric["cvssData"]["baseScore"],
-                "exploitabilityScore": metric["exploitabilityScore"],
-                "impactScore": metric["impactScore"]
-            }
+        if "cvssMetricV31" in cve["cve"]["metrics"]:
+            for metric in cve["cve"]["metrics"]["cvssMetricV31"]:
+                
+                metric_data.append({
+                    "vector": metric["cvssData"]["vectorString"].replace("CVSS:3.1/", ""),
+                    "baseScore": metric["cvssData"]["baseScore"],
+                    "exploitabilityScore": metric["exploitabilityScore"],
+                    "impactScore": metric["impactScore"],
+                    "severity": metric["cvssData"]["baseSeverity"].capitalize()
+                })
+
             
-            severity = metric["cvssData"]["baseSeverity"].capitalize()
+        elif "cvssMetricV30" in cve["cve"]["metrics"]:
+            for metric in cve["cve"]["metrics"]["cvssMetricV30"]:
+                metric_data.append({
+                    "vector": metric["cvssData"]["vectorString"].replace("CVSS:3.0/", ""),
+                    "baseScore": metric["cvssData"]["baseScore"],
+                    "exploitabilityScore": metric["exploitabilityScore"],
+                    "impactScore": metric["impactScore"],
+                    "severity": metric["cvssData"]["baseSeverity"].capitalize()
+                })
             
-        elif "cvssMetricV3.0" in cve["cve"]["metrics"]:
-            metric = cve["cve"]["metrics"]["cvssMetricV3.0"][0]
-            metric_data = {
-                "vector": metric["cvssData"]["vectorString"].replace("CVSS:3.0/", ""),
-                "baseScore": metric["cvssData"]["baseScore"],
-                "exploitabilityScore": metric["exploitabilityScore"],
-                "impactScore": metric["impactScore"]
-            }
-            
-            severity = metric["cvssData"]["baseSeverity"].capitalize()  
         elif "cvssMetricV2" in cve["cve"]["metrics"]:
-            metric = cve["cve"]["metrics"]["cvssMetricV2"][0]
-            metric_data = {
-                "vector": metric["cvssData"]["vectorString"],
-                "baseScore": metric["cvssData"]["baseScore"],
-                "exploitabilityScore": metric["exploitabilityScore"],
-                "impactScore": metric["impactScore"]
-            }
-            
-            severity = metric["baseSeverity"].capitalize()
+            for metric in cve["cve"]["metrics"]["cvssMetricV2"]:
+                metric_data.append({
+                    "vector": metric["cvssData"]["vectorString"],
+                    "baseScore": metric["cvssData"]["baseScore"],
+                    "exploitabilityScore": metric["exploitabilityScore"],
+                    "impactScore": metric["impactScore"],
+                    "severity": metric["cvssData"]["baseSeverity"].capitalize()
+                })
                     
         
         cve_data.update({
-            "metrics": [metric_data],
-            "severity": severity
+            "metrics": metric_data
         })
         
-        references = []
+        references = set()
         if "references" in cve["cve"]:
             for ref in cve["cve"]["references"]:
-                references.append({"url": ref["url"]})
-        cve_data["references"] = references
+                references.add(ref["url"])
+        #list of unique references
+        cve_data["references"] = list({"url": url} for url in references)
         
-        # Prepare vendors and products data
         vendors_products = []
-        versions = []
-        
+
         if "configurations" in cve["cve"]:
             for configuration in cve["cve"]["configurations"]:
                 for node in configuration["nodes"]:
@@ -1766,7 +1891,19 @@ class CyberGraph:
                                       else "Hardware" if cpe_elements[2] == "h" 
                                       else "Operating Systems")
                         
-                        # Add vendor/product if not already processed
+                        vendors_products.append({
+                            "vendorName": vendor_name,
+                            "productName": product_name,
+                            "productType": product_type,
+                            "vulnerable": cpe["vulnerable"],
+                            "cpe23Uri": cpe["criteria"],
+                            "versionStartIncluding": (cpe.get("versionStartIncluding") or 
+                                                    (cpe_elements[5] if len(cpe_elements) > 5 else None)),
+                            "versionEndExcluding": cpe.get("versionEndExcluding")
+                        })
+                                                
+                        
+                        """# Add vendor/product if not already processed
                         product_key = (vendor_name, product_name)
                         if product_key not in processed_products:
                             vendors_products.append({
@@ -1785,14 +1922,41 @@ class CyberGraph:
                                                     (cpe_elements[5] if len(cpe_elements) > 5 else None)),
                             "versionEndExcluding": cpe.get("versionEndExcluding")
                         }
-                        versions.append(version_data)
+                        versions.append(version_data)"""
+                        
         
         cve_data.update({
-            "vendors_products": vendors_products,
-            "versions": versions,
+            "vendors_products": vendors_products
         })
         
         return cve_data
+    
+    def handle_cve_batch(self, source_filename, batch_size=100):
+        with open(source_filename, mode="r", encoding='utf-8') as file:
+            # Create indexes first
+            self.create_cve_index()
+            self.create_product_index()
+            self.create_reference_index()
+            
+            data = json.load(file)
+            cve_count = len(data["vulnerabilities"])
+            batch = []
+            
+            for idx, cve in enumerate(data["vulnerabilities"], 1):
+                self.printProgressBar(idx, cve_count, "CVE")
+                
+                cve_data = self.process_single_cve(cve)
+                #print(cve_data)
+                #input("Press Enter to continue...")
+                batch.append(cve_data)
+                
+                if len(batch) >= batch_size:
+                    self.write_cve_batch_comprehensive(batch)
+                    batch = []
+            
+            # Process any remaining CVEs in the last batch
+            for cve_item in batch:
+                self.write_cve_comprehensive(cve_item)
     
     def handle_cve_optimized(self, source_filename):
         """
@@ -1802,14 +1966,19 @@ class CyberGraph:
             # Create indexes first
             self.create_cve_index()
             self.create_product_index()
+            self.create_reference_index()
             
             data = json.load(file)
             cve_count = len(data["vulnerabilities"])
+            
             
             for idx, cve in enumerate(data["vulnerabilities"], 1):
                 self.printProgressBar(idx, cve_count, "CVE")
                 
                 cve_data = self.process_single_cve(cve)
+                
+                #print(cve_data)
+                #input("Press Enter to continue...")
                 
                 self.write_cve_comprehensive(cve_data)
 
@@ -1818,6 +1987,7 @@ class CyberGraph:
             
             self.create_cve_index()
             self.create_product_index()
+            self.create_reference_index()
             
             data = json.load(file)
             cve_count = len(data["vulnerabilities"])
@@ -2047,7 +2217,7 @@ class CyberGraph:
     @staticmethod
     def _create_tactic(tx, elements):
         tx.run("""
-            MERGE (tactic:TACTIC { id:$id, name:$name, description:$description, link:$link })
+            MERGE (tactic:Tactic { id:$id, name:$name, description:$description, link:$link })
             """, 
             id=elements["external_id"],
             name=elements["name"],
@@ -2057,8 +2227,9 @@ class CyberGraph:
     @staticmethod
     def _create_mitre_technique(tx, elements):
         tx.run("""
-            MATCH (tactic:TACTIC { id:$tacId })
-            MERGE (tec:AdversaryTechnique { id:$id, name:$name, description:$description, link:$link})
+            MATCH (tactic:Tactic { id:$tacId })
+            MERGE (tec:AdversaryTechnique { id:$id})
+            SET tec += { name:$name, description:$description, link:$link }
             MERGE (tactic)-[:HAS_MITRE_TECHNIQUE]->(tec)
             """, 
             tacId=elements["tac_external_id"],
@@ -2066,7 +2237,16 @@ class CyberGraph:
             name=elements["name"],
             description=elements["description"],
             link=elements["link"])
-
+    @staticmethod
+    def _create_sub_technique(tx, elements):
+        tx.run("""
+            MERGE (parentTec:AdversaryTechnique { id:$parentId })
+            MERGE (subTec:AdversaryTechnique { id:$id})
+            MERGE (parentTec)-[:HAS_SUB_TECHNIQUE]->(subTec)
+            """, 
+            parentId=elements["parent_external_id"],
+            id=elements["external_id"])
+        
     def write_tactic(self, elements):
         with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_tactic, elements)
@@ -2074,6 +2254,11 @@ class CyberGraph:
     def write_mitre_technique(self, elements):
         with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_mitre_technique, elements)
+            
+    def write_sub_technique(self, elements):
+        with self.driver.session(database=self.db) as session:
+            res = session.execute_write(self._create_sub_technique, elements)
+            
 
     # ==============================================
     # =============== HANDLE GROUPS ===================
@@ -2082,7 +2267,7 @@ class CyberGraph:
     
     @staticmethod
     def _create_GROUP(tx, elements):
-        tx.run("MERGE (x:THREAT_ACTOR { name:$name, description:$description, link:$link })", 
+        tx.run("MERGE (x:ThreatActor { name:$name, description:$description, link:$link })", 
             name=elements["name"],
             description=elements["description"],
             link=elements["link"])
@@ -2090,8 +2275,8 @@ class CyberGraph:
     @staticmethod
     def _create_alias(tx, elements):
         tx.run("""
-                MATCH (x:THREAT_ACTOR { name:$name })
-                MERGE (y:THREAT_ACTOR_ALIAS { name:$alias})
+                MATCH (x:ThreatActor { name:$name })
+                MERGE (y:ThreatActorAlias { name:$alias})
                 MERGE (x)-[:HAS_ALIAS]->(y)
                 """,
                 name = elements["name"],
@@ -2101,13 +2286,14 @@ class CyberGraph:
     def _create_group_with_technique(tx, elements):
         tx.run("""
                 MATCH (x:AdversaryTechnique { id:$id })
-                MERGE (y:THREAT_ACTOR { name:$name, description:$description, link:$link})
+                MERGE (y:ThreatActor { name:$name, description:$description, link:$link})
                 MERGE (x)-[:IS_USED_BY]->(y)
                 """,
                 id = elements["tecId"],
                 name = elements["name"],
                 description = elements["description"],
                 link = elements["link"])
+   
               
     def write_group(self, elements):
         with self.driver.session(database=self.db) as session:
@@ -2120,6 +2306,8 @@ class CyberGraph:
     def write_group_with_technique(self, elements):
         with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_group_with_technique, elements)
+    
+
     
     def handle_group(self, json):
         self.write_group({
@@ -2150,7 +2338,7 @@ class CyberGraph:
                         'techniques':[]
                     })
         for tactic in tactics_new:
-            techniques = mitre_attack_data.get_techniques_by_tactic(tactics_new[0].get('short-name'), "enterprise-attack", remove_revoked_deprecated=True)
+            techniques = mitre_attack_data.get_techniques_by_tactic(tactic.get('short-name'), "enterprise-attack", remove_revoked_deprecated=True)
             for tec in techniques:
                 for tec2 in tec.get('external_references'):
                     if tec2.get('source_name') == "mitre-attack":
@@ -2174,7 +2362,15 @@ class CyberGraph:
                     'name':tec.get('name'),
                     'description':tec.get('description'),
                     'link':tec.get('link')
-            })
+                })
+                
+                subtec=tec.get('external_id').split(".")
+                if len(subtec)>1:
+                    self.write_sub_technique({
+                        'parent_external_id':subtec[0],
+                        'external_id':tec.get('external_id')
+                    })
+            
         gg = mitre_attack_data.get_all_groups_using_all_techniques()
         for id, groups in gg.items():
             attack_id = mitre_attack_data.get_attack_id(id)
@@ -2187,7 +2383,6 @@ class CyberGraph:
                             "link":ex.get('url'),
                             "tecId":attack_id,
                     })
-            print(f"* {attack_id} - used by {len(groups)} {'group' if len(groups) == 1 else 'groups'}")
         groups = mitre_attack_data.get_groups(remove_revoked_deprecated=True)
         
         train_defaults["group"]="name"
@@ -2208,11 +2403,15 @@ if __name__ == "__main__":
     cyberGraph = CyberGraph(neo4j_uri, neo4j_username, neo4j_password)
 
     cyberGraph.handle_cna("cna.json")
-    #cyberGraph.handle_cwe("cwe.csv")
-    #cyberGraph.handle_capec("capec.csv")
-    #cyberGraph.handle_cve("dump.json")
-    #cyberGraph.handle_epss("epss.csv")
-    #cyberGraph.first_mitre_run("enterprise-attack.json")
+    cyberGraph.handle_cwe("cwe.csv")
+    cyberGraph.handle_capec("capec.csv")
+    startTime = time.time()
+    #cyberGraph.handle_cve_optimized("dump2023.json")
+    cyberGraph.handle_cve_batch("dump2023.json")
+    endTime = time.time()
+    print(f"Time taken to process CVEs: {endTime - startTime} seconds")
+    cyberGraph.handle_epss("epss.csv")
+    cyberGraph.first_mitre_run("enterprise-attack.json")
     #cyberGraph.handle_sources("sources.json")
     #cyberGraph.handle_cpe("cpe.json")
     #cyberGraph.handle_euvd("euvd.json")

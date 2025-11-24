@@ -743,8 +743,9 @@ if __name__ == "__main__":
     cna = CNA()
     epss = EPSS()
     
-    #epss.create_epss_dump("epss")
-    #cves.create_cves_dump(filename="dump2")
-    #cwes.create_cwes_dump()
-    #capec.create_capec_dump()
+    epss.create_epss_dump("epss")
+    cves.create_cves_dump(filename="dump")
+    cwes.create_cwes_dump()
+    capec.create_capec_dump()
+    #cves.get_cves_year(filename="dump2023", year=2023)
     cna.create_cna_dump()
