@@ -1536,14 +1536,14 @@ class CyberGraph:
         
         WITH DISTINCT cve
         FOREACH (r in $references |
-            MERGE (reference:Reference { url: r.url })
+            MERGE (reference:Reference { url: toString(r.url) })
             CREATE (cve)-[:HAS_LINK_TO]->(reference)
         )
         
         WITH DISTINCT cve
         FOREACH (v in $vendors_products |
-            MERGE (vendor:Vendor { name: v.vendorName })
-            MERGE (product:Product { name: v.productName })
+            MERGE (vendor:Vendor { name: toString(v.vendorName) })
+            MERGE (product:Product { name: toString(v.productName) })
             ON CREATE SET product.type = v.productType
             MERGE (vendor)-[:OWN]->(product)
             CREATE (cve)-[:AFFECTS {
@@ -1604,14 +1604,14 @@ class CyberGraph:
         
         WITH DISTINCT cve, elements
         FOREACH (r in elements.references |
-            MERGE (reference:Reference { url: r.url })
+            MERGE (reference:Reference { url: toString(r.url) })
             CREATE (cve)-[:HAS_LINK_TO]->(reference)
         )
         
         WITH DISTINCT cve, elements
         FOREACH (v in elements.vendors_products |
-            MERGE (vendor:Vendor { name: v.vendorName })
-            MERGE (product:Product { name: v.productName })
+            MERGE (vendor:Vendor { name: toString(v.vendorName) })
+            MERGE (product:Product { name: toString(v.productName) })
             ON CREATE SET product.type = v.productType
             MERGE (vendor)-[:OWN]->(product)
             CREATE (cve)-[:AFFECTS {
@@ -2402,16 +2402,16 @@ if __name__ == "__main__":
 
     cyberGraph = CyberGraph(neo4j_uri, neo4j_username, neo4j_password)
 
-    cyberGraph.handle_cna("cna.json")
-    cyberGraph.handle_cwe("cwe.csv")
-    cyberGraph.handle_capec("capec.csv")
+    #cyberGraph.handle_cna("cna.json")
+    #cyberGraph.handle_cwe("cwe.csv")
+    #cyberGraph.handle_capec("capec.csv")
     startTime = time.time()
     #cyberGraph.handle_cve_optimized("dump2023.json")
     cyberGraph.handle_cve_batch("dump2023.json")
     endTime = time.time()
     print(f"Time taken to process CVEs: {endTime - startTime} seconds")
-    cyberGraph.handle_epss("epss.csv")
-    cyberGraph.first_mitre_run("enterprise-attack.json")
+    #cyberGraph.handle_epss("epss.csv")
+    #cyberGraph.first_mitre_run("enterprise-attack.json")
     #cyberGraph.handle_sources("sources.json")
     #cyberGraph.handle_cpe("cpe.json")
     #cyberGraph.handle_euvd("euvd.json")
