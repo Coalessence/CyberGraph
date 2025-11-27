@@ -1151,22 +1151,85 @@ class CyberGraph:
         with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._delete_epss)
     
+    def write_epss_batch(self, elements):
+        with self.driver.session(database=self.db) as session:
+            res = session.execute_write(self._create_epss_batch, elements)
+    
     @staticmethod
     def _delete_epss(tx):
         tx.run("""MATCH (epss:EPSS) DETACH DELETE epss""")
         
     
     @staticmethod
+    def _create_epss_batch(tx, elements):
+        tx.run("""
+               UNWIND $epssList AS epssData
+               MATCH (cve:CVE { id:toString(epssData.cveId) })
+               CREATE (epss:EPSS { probability:epssData.probability, percentile:epssData.percentile})
+               CREATE (cve)-[:HAS_EPSS]->(epss)
+               """,
+               epssList=elements["epssList"])
+    
+    
+    @staticmethod
     def _create_epss(tx, elements):
         tx.run("""
-               MATCH (cve:CVE { id:$cveId })
+               MATCH (cve:CVE { id:toString($cveId) })
                CREATE (epss:EPSS { probability:$probability, percentile:$percentile})
-               MERGE (cve)-[:HAS_EPSS]->(epss)
+               CREATE (cve)-[:HAS_EPSS]->(epss)
                """,
                cveId=elements["cveId"],
                probability=elements["probability"],
                percentile=elements["percentile"])
+    
+    def handle_epss_batch(self, source_filename, batch_size=1000):
+        #we need to first remove existing epss
+        self.clean_epss()
         
+        total=0
+        with open(source_filename, 'r', encoding="utf-8") as file:
+            reader = csv.reader(file, delimiter=',')
+            total=len(list(reader))
+        
+        total = total - 2
+        
+        with open(source_filename, 'r', encoding="utf-8") as file:
+            reader = csv.reader(file, delimiter=',')
+            # Skip the first row (comment with version and last update date)
+            next(reader)
+            # Read the second row (column headers)
+            headers = next(reader)
+            
+            idx=0
+            batch=[]
+            
+            for row in reader:
+                row_dict = dict(zip(headers, row))
+                self.printProgressBar(idx,total,"EPSS")
+                
+                batch.append({
+                    "cveId":row_dict["cve"],
+                    "probability":float(row_dict["epss"]),
+                    "percentile":float(row_dict["percentile"]),
+                })
+                
+                if len(batch) >= batch_size:
+                    self.write_epss_batch({
+                        "epssList":batch
+                    })
+                    batch=[]
+                
+                idx += 1
+            
+            #writing remaining elements
+            if len(batch) > 0:
+                self.write_epss_batch({
+                    "epssList":batch
+                })
+                
+            print("")
+    
+    
     def handle_epss(self, source_filename):
         
         #we need to first remove existing epss
@@ -1175,8 +1238,7 @@ class CyberGraph:
         total=0
         with open(source_filename, 'r', encoding="utf-8") as file:
             reader = csv.reader(file, delimiter=',')
-            for row in reader:
-                total += 1
+            total=len(list(reader))
         
         total = total - 2
         
@@ -1190,7 +1252,6 @@ class CyberGraph:
             idx=0
             
             for row in reader:
-                # Create a dictionary using the headers as keys and row values
                 row_dict = dict(zip(headers, row))
                 self.printProgressBar(idx,total,"EPSS")
                 
@@ -2402,16 +2463,31 @@ if __name__ == "__main__":
 
     cyberGraph = CyberGraph(neo4j_uri, neo4j_username, neo4j_password)
 
-    #cyberGraph.handle_cna("cna.json")
-    #cyberGraph.handle_cwe("cwe.csv")
-    #cyberGraph.handle_capec("capec.csv")
+    startTime = time.time()
+    cyberGraph.handle_cna("cna.json")
+    endTime = time.time()
+    print(f"Time taken to process CNAs: {endTime - startTime} seconds")
+    startTime = time.time()
+    cyberGraph.handle_cwe("cwe.csv")
+    endTime = time.time()
+    print(f"Time taken to process CWEs: {endTime - startTime} seconds")
+    startTime = time.time()
+    cyberGraph.handle_capec("capec.csv")
+    endTime = time.time()
+    print(f"Time taken to process CAPECs: {endTime - startTime} seconds")
     startTime = time.time()
     #cyberGraph.handle_cve_optimized("dump2023.json")
-    cyberGraph.handle_cve_batch("dump2023.json")
+    cyberGraph.handle_cve_batch("dump.json")
     endTime = time.time()
     print(f"Time taken to process CVEs: {endTime - startTime} seconds")
-    #cyberGraph.handle_epss("epss.csv")
-    #cyberGraph.first_mitre_run("enterprise-attack.json")
+    startTime = time.time()
+    cyberGraph.handle_epss("epss.csv")
+    endTime = time.time()
+    print(f"Time taken to process EPSS: {endTime - startTime} seconds")
+    startTime = time.time()
+    cyberGraph.first_mitre_run("enterprise-attack.json")
+    endTime = time.time()
+    print(f"Time taken to process MITRE ATT&CK: {endTime - startTime} seconds")
     #cyberGraph.handle_sources("sources.json")
     #cyberGraph.handle_cpe("cpe.json")
     #cyberGraph.handle_euvd("euvd.json")
