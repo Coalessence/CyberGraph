@@ -7,6 +7,8 @@ import re
 import json
 import sys
 import time
+import requests
+import urllib.parse
 
 train_defaults = {}
 
@@ -1351,13 +1353,13 @@ class CyberGraph:
     @staticmethod
     def _create_cpe_title(tx, elements):
         tx.run("""
-            MATCH (:CVE)-[:AFFECTS { cpe23Uri:$cpeName }]->(p:Product)
-            MERGE (ti:Title { title:$title, language:$language })
-            MERGE (p)-[:HAS_TITLE]->(ti)
+            MATCH (p:Product{ name:toString($cpeName)})
+            UNWIND $titles AS title
+            CREATE (ti:Title { title:toString(title)})
+            CREATE (p)-[:HAS_TITLE]->(ti)
             """, 
-            cpeName=elements["cpeName"],
-            title=elements["title"],
-            language=elements["language"])
+            cpeName=elements["cpe"],
+            titles=elements["titles"])
         
     @staticmethod
     def _create_cpe_refs(tx, elements):
@@ -1369,6 +1371,14 @@ class CyberGraph:
             cpeName=elements["cpeName"],
             ref=elements["ref"],
             type=elements["type"])
+        
+    @staticmethod
+    def _get_all_cpe(tx):
+        result = tx.run("""
+            MATCH (p:Product)
+            RETURN DISTINCT p.name as cpeName
+            """)
+        return [record["cpeName"] for record in result]
     
     def write_cpe_title(self, elements):
         with self.driver.session(database=self.db) as session:
@@ -1377,33 +1387,58 @@ class CyberGraph:
     def write_cpe_refs(self, elements):
         with self.driver.session(database=self.db) as session:
             res = session.execute_write(self._create_cpe_refs, elements)
+            
+    def read_all_cpe(self):
+        with self.driver.session(database=self.db) as session:
+            result = session.execute_read(self._get_all_cpe)
+            return result
+    
+    def create_title_index(self):
+        self.driver.execute_query("""
+            CREATE TEXT INDEX cpe_title IF NOT EXISTS FOR (ti:Title) ON (ti.title)
+            """)
+        
+    def send_request(self,url, api_key):
+        response = None
+        while True:
+            res = requests.get(url, headers={"apiKey": api_key})
+            if res:
+                try:
+                    response = res.json()
+                    break
+                except:
+                    print("Some error occured during the JSON conversion of the API response. A new attempt will be done in {} seconds.".format(self._retry_sleep))
+                    time.sleep(self._retry_sleep)
+            else:
+                print("The NIST API didn't responded in time. A new attempt will be done in {} seconds.".format(self._retry_sleep))
+                time.sleep(self._retry_sleep)
+        return response
 
-    def handle_cpe(self, cpe_filename):
-        with open(cpe_filename, mode='r') as file:
-            data = json.load(file)
-            product_count = len(data["products"])
-            for idx,product in enumerate(data["products"],1):
-                self.printProgressBar(idx,product_count,"products")     
-                cpe=product["cpe"]
+    def handle_cpe(self):
+        
+        api_key=os.getenv("NIST_API_KEY","")
+        
+        cpe_list = self.read_all_cpe()
+        
+        
+        for idx,cpe in enumerate(cpe_list,1):
+            print(cpe)
+            self.printProgressBar(idx,len(cpe_list),"CPEs")
+            url="https://services.nvd.nist.gov/rest/json/cpes/2.0?cpeMatchString=cpe:2.3:*:*:{}:-".format(urllib.parse.quote(cpe, safe=''))
+            response = self.send_request(url, api_key)
+            
+            if "products" in response and len(response["products"])>0:
+                titles=list()
+                for cpe_item in response["products"]:
+                    if not cpe_item["cpe"]["deprecated"]:
+                        for title in cpe_item["cpe"]["titles"]:
+                            titles.append(title["title"])
                 
-                if not cpe["deprecated"]:
-                    for title in cpe["titles"]:
-                        self.write_cpe_title({
-                            "cpeName": cpe["cpeName"],
-                            "title": title["title"],
-                            "language": title["lang"]
-                        })
-                    
-                    
-                    #TODO little fix here if ref is there or not
-                    if "refs" in cpe:
-                        for ref in cpe["refs"]:
-                            if "type" in ref:
-                                self.write_cpe_refs({
-                                    "cpeName": cpe["cpeName"],
-                                    "ref": ref["ref"],
-                                    "type": ref["type"]
-                                })
+                self.write_cpe_title({
+                    "cpe": cpe,
+                    "titles": titles
+                })
+        
             
             train_defaults["title"]="title"
             print("")
@@ -1942,20 +1977,20 @@ class CyberGraph:
         if "configurations" in cve["cve"]:
             for configuration in cve["cve"]["configurations"]:
                 for node in configuration["nodes"]:
-                    processed_products = set()
+                    #processed_products = set()
                     
                     for cpe in node["cpeMatch"]:
                         cpe_elements = cpe["criteria"].split(":")
-                        vendor_name = cpe_elements[3]
-                        product_name = cpe_elements[4]
+                        vendor_name = repr(cpe_elements[3])[1:-1]
+                        product_name = repr(cpe_elements[4])[1:-1]
                         product_type = ("Application" if cpe_elements[2] == "a" 
                                       else "Hardware" if cpe_elements[2] == "h" 
                                       else "Operating Systems")
                         
                         vendors_products.append({
                             "vendorName": vendor_name,
-                            "productName": product_name,
-                            "productType": product_type,
+                            "productName": repr(product_name)[1:-1],
+                            "productType": repr(product_type)[1:-1],
                             "vulnerable": cpe["vulnerable"],
                             "cpe23Uri": cpe["criteria"],
                             "versionStartIncluding": (cpe.get("versionStartIncluding") or 
@@ -2135,7 +2170,7 @@ class CyberGraph:
                                 if cpe_elements[3] != lastvendor or cpe_elements[4] != lastproduct:
                                     self.write_vendor_and_product({
                                         "vendorName":cpe_elements[3],
-                                        "productName":cpe_elements[4],
+                                        "productName":cpe_elements[4].replace('\\','\\\\'),
                                         "productType":("Application" if cpe_elements[2]=="a" else "Hardware" if cpe_elements[2]=="h" else "Operating Systems")
                                     })
                                     lastvendor = cpe_elements[3]
@@ -2463,7 +2498,7 @@ if __name__ == "__main__":
 
     cyberGraph = CyberGraph(neo4j_uri, neo4j_username, neo4j_password)
 
-    startTime = time.time()
+    """ startTime = time.time()
     cyberGraph.handle_cna("cna.json")
     endTime = time.time()
     print(f"Time taken to process CNAs: {endTime - startTime} seconds")
@@ -2487,9 +2522,9 @@ if __name__ == "__main__":
     startTime = time.time()
     cyberGraph.first_mitre_run("enterprise-attack.json")
     endTime = time.time()
-    print(f"Time taken to process MITRE ATT&CK: {endTime - startTime} seconds")
+    print(f"Time taken to process MITRE ATT&CK: {endTime - startTime} seconds") """
     #cyberGraph.handle_sources("sources.json")
-    #cyberGraph.handle_cpe("cpe.json")
+    cyberGraph.handle_cpe()
     #cyberGraph.handle_euvd("euvd.json")
     
     
